@@ -1,0 +1,66 @@
+# Workaround for CocoaPods 1.16.0+ regression: https://github.com/CocoaPods/CocoaPods/issues/12794
+begin
+  require 'xcodeproj'
+  module ::Xcodeproj
+    class Project
+      module Object
+        class PBXShellScriptBuildPhase
+          if method_defined?(:shell_script=) && !method_defined?(:old_shell_script=)
+            alias_method :old_shell_script=, :shell_script=
+            def shell_script=(value)
+              value = value.join("\n") if value.is_a?(Array)
+              self.old_shell_script = value
+            end
+          end
+        end
+      end
+    end
+  end
+rescue LoadError
+end
+
+platform :ios, '15.0'
+
+# CocoaPods analytics…
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "Generated.xcconfig must exist. Run 'flutter pub get' in your Flutter project root."
+  end
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in Generated.xcconfig"
+end
+
+require File.expand_path(File.join(flutter_root, 'packages', 'flutter_tools', 'bin', 'podhelper'), __FILE__)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  pod 'MSAL'
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
+  end
+end

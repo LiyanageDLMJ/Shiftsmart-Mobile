@@ -1,0 +1,110 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services" 
+}
+
+def GOOGLE_MAPS_API_KEY = project.hasProperty("GOOGLE_MAPS_ANDROID_KEY") 
+    ? project.GOOGLE_MAPS_ANDROID_KEY 
+    : project.findProperty("GOOGLE_MAPS_ANDROID_KEY") 
+        ?: System.getenv("GOOGLE_MAPS_ANDROID_KEY")
+
+if (!GOOGLE_MAPS_API_KEY) {
+    def envFile = rootProject.file("../.env")
+    if (envFile.exists()) {
+        def androidKey = null
+        def genericKey = null
+        envFile.eachLine { line ->
+            def trimmed = line.trim()
+            if (trimmed && !trimmed.startsWith("#")) {
+                if (trimmed.startsWith("GOOGLE_MAPS_ANDROID_KEY=")) {
+                    androidKey = trimmed.substring("GOOGLE_MAPS_ANDROID_KEY=".length()).trim()
+                } else if (trimmed.startsWith("GOOGLE_MAPS_API_KEY=")) {
+                    genericKey = trimmed.substring("GOOGLE_MAPS_API_KEY=".length()).trim()
+                }
+            }
+        }
+        GOOGLE_MAPS_API_KEY = androidKey ?: genericKey
+    }
+}
+
+// Hardcoded fallback – Android Maps Key
+if (!GOOGLE_MAPS_API_KEY) {
+    GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "com.AIT_MOBILE.shiftsmart"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = "27.0.12077973"
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId = "com.AIT_MOBILE.shiftsmart"
+        minSdkVersion = flutter.minSdkVersion // ✅ UPDATED: Recommended for Notification Support
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+        manifestPlaceholders = [
+            appAuthRedirectScheme: "msauth",
+            googleMapsApiKey: GOOGLE_MAPS_API_KEY ?: ""
+        ] 
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreProperties.containsKey('storeFile')) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // --- Firebase Dependencies ---
+    // Import the BoM for the Firebase platform
+    implementation platform('com.google.firebase:firebase-bom:33.16.0')
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
+    // Add the dependency for the Firebase Cloud Messaging library
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation 'com.google.firebase:firebase-messaging'
+    implementation 'com.google.firebase:firebase-analytics'
+
+    // --- Other Dependencies ---
+    implementation 'io.opentelemetry:opentelemetry-api:1.10.0'
+    implementation 'io.opentelemetry:opentelemetry-sdk:1.10.0'
+}
+
+flutter {
+    source = "../.."
+}
