@@ -56,5 +56,6 @@ android/key.properties*
 # App service config files should be added locally, not committed.
 android/app/google-services.json
 ios/GoogleService-Info.plist
+ios/Runner/GoogleService-Info.plist
 .env.*
 !.env.example
