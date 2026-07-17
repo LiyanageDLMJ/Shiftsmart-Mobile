@@ -147,6 +147,7 @@ String _titleForMessageType(String? type) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  var firebaseReady = false;
 
   // Initialize Google Maps renderer (fixes blank/beige map tiles)
   // Wrapped in try-catch because hot restart throws "Renderer already initialized"
@@ -162,21 +163,30 @@ void main() async {
   }
 
   // Initialize Firebase & Environment
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+    firebaseReady = true;
+  } catch (error) {
+    debugPrint('Firebase initialization skipped: $error');
+  }
   await dotenv.load();
 
   // Set up Background Handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  if (firebaseReady) {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
   // Setup Local Notifications (For Foreground Pop-ups)
   await setupLocalNotifications();
 
   // Initialize FCM Service (Permission Request)
   // We pass employeeId: 0 to setup listeners, BUT skip registration to avoid 403 error.
-  await NotificationService().initializeFCM(
-    employeeId: 0,
-    userTag: "guest",
-  );
+  if (firebaseReady) {
+    await NotificationService().initializeFCM(
+      employeeId: 0,
+      userTag: "guest",
+    );
+  }
 
   runApp(
     MultiProvider(
