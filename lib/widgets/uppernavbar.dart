@@ -165,7 +165,7 @@ class Uppernavbar extends StatefulWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(72);
 
   @override
   State<Uppernavbar> createState() => _UppernavbarState();
@@ -215,8 +215,10 @@ class _UppernavbarState extends State<Uppernavbar> {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF1C2230),
       elevation: 0,
+      toolbarHeight: 72,
+      titleSpacing: 16,
       automaticallyImplyLeading: false,
       flexibleSpace: Container(
         decoration: const BoxDecoration(
@@ -309,7 +311,7 @@ class _UppernavbarState extends State<Uppernavbar> {
                   );
                 }
               },
-              child: Image.asset('assets/logo.png', height: 100),
+              child: Image.asset('assets/logo.png', height: 56),
             ),
 
           // If we are showing the Title (Expanded), we don't need a spacer.
@@ -342,7 +344,7 @@ class _UppernavbarState extends State<Uppernavbar> {
                 const Padding(
                   padding: EdgeInsets.all(10),
                   child: Icon(Icons.notifications,
-                      color: Colors.blueAccent, size: 30),
+                      color: Colors.blueAccent, size: 28),
                 ),
                 if (_unreadNotificationCount > 0)
                   Positioned(
@@ -403,7 +405,7 @@ class _UppernavbarState extends State<Uppernavbar> {
                     ),
                   ],
                 ),
-                child: Image.asset('assets/Menu.png', height: 30),
+                child: Image.asset('assets/Menu.png', height: 24),
               ),
             ),
           ),

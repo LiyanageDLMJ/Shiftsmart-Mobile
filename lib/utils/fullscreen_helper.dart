@@ -10,13 +10,16 @@ void disableFullScreen() {
 }
 
 void _showSystemBars() {
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: SystemUiOverlay.values,
+  );
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor: Color(0xFF1C2230),
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarColor: Color(0xFF1C2230),
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
