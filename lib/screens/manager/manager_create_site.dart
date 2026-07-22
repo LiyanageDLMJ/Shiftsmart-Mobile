@@ -345,10 +345,17 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final form = ManagerFormShell(
       title: widget.site != null ? "UPDATE SITE" : "CREATE SITE",
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          0,
+          20,
+          0,
+          keyboardInset + 20,
+        ),
         children: [
           ManagerSectionPanel(
             title: 'Site Details',
@@ -424,6 +431,7 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
 
     return Scaffold(
         drawer: const Sidenav(),
+        resizeToAvoidBottomInset: false,
         backgroundColor: ManagerScreenStyle.pageBg,
         appBar: const Uppernavbar(
           showBackButton: true,

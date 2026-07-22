@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:shiftsmart/screens/manager/manager_create_com.dart';
 import 'package:shiftsmart/services/company_service.dart';
 import 'package:shiftsmart/services/project_service.dart';
-import 'package:shiftsmart/widgets/custom_date_picker.dart';
 import 'package:shiftsmart/models/company.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
@@ -31,11 +29,6 @@ class Managercreateproject2 extends StatefulWidget {
 }
 
 class _Managercreateproject2State extends State<Managercreateproject2> {
-  // Controllers
-  final TextEditingController _datedueController = TextEditingController();
-  final TextEditingController _startdateController = TextEditingController();
-  final TextEditingController _enddateController = TextEditingController();
-
   // Data
   List<Company> allCom = [];
   int? _selectedComId; // Track ID instead of Name String
@@ -49,17 +42,6 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
     fetchCompanies().then((_) {
       if (widget.project != null) {
         _selectedStatus = _normalizeStatus(widget.project!.status);
-
-        // Safe check for null dates
-        if (widget.project!.projectDue.isNotEmpty) {
-          _datedueController.text = _dateOnly(widget.project!.projectDue);
-        }
-        if (widget.project!.startDate.isNotEmpty) {
-          _startdateController.text = _dateOnly(widget.project!.startDate);
-        }
-        if (widget.project!.endDate.isNotEmpty) {
-          _enddateController.text = _dateOnly(widget.project!.endDate);
-        }
 
         // Find the company ID that matches the company name (case-insensitive & trimmed)
         final existingCom = allCom
@@ -101,67 +83,12 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
     }
   }
 
-  // --- Date Picker Logic ---
-  Future<void> _selectDate(
-      BuildContext context, TextEditingController controller) async {
-    final initialDate = _parseDate(controller.text) ?? DateTime.now();
-    DateTime? pickedDate = await showDatePicker(
-        context: context,
-        initialDate: initialDate,
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2100),
-        builder: datePickerThemeBuilder);
-    if (pickedDate != null) {
-      final formattedDate = DateFormat('yyyy-MM-dd').format(pickedDate);
-      setState(() => controller.text = formattedDate);
-    }
-  }
-
-  DateTime? _parseDate(String value) {
-    if (value.trim().isEmpty) return null;
-    return DateTime.tryParse(value.trim());
-  }
-
-  String _dateOnly(String value) {
-    final parsed = _parseDate(value);
-    if (parsed != null) {
-      return DateFormat('yyyy-MM-dd').format(parsed);
-    }
-    return value.split('T').first;
-  }
-
-  String _dateTimeUtc(String value) {
-    return '${_dateOnly(value)}T00:00:00Z';
-  }
-
   // --- Submit Logic ---
   Future<void> _submitProjectData() async {
     // 1. Validation
-    if (_datedueController.text.isEmpty ||
-        _startdateController.text.isEmpty ||
-        _enddateController.text.isEmpty ||
-        _selectedComId == null) {
+    if (_selectedComId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill in all fields")),
-      );
-      return;
-    }
-
-    final startDate = _parseDate(_startdateController.text);
-    final endDate = _parseDate(_enddateController.text);
-    final projectDue = _parseDate(_datedueController.text);
-
-    if (startDate == null || endDate == null || projectDue == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select valid project dates")),
-      );
-      return;
-    }
-
-    if (endDate.isBefore(startDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("End Date cannot be earlier than Start Date")),
       );
       return;
     }
@@ -171,9 +98,6 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
       "CompanyId": _selectedComId, // Capitalized Keys
       "Description": widget.description,
       "AdditionalRemarks": widget.additionalRemark,
-      "ProjectDue": _dateTimeUtc(_datedueController.text),
-      "StartDate": _dateTimeUtc(_startdateController.text),
-      "EndDate": _dateTimeUtc(_enddateController.text),
       "Status": _selectedStatus,
     };
 
@@ -246,28 +170,16 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
                           _StepIntro(step: 'Step 2 of 2'),
                           const SizedBox(height: 18),
                           _SectionPanel(
-                            title: 'Schedule and Ownership',
+                            title: 'Ownership',
                             subtitle:
-                                'Set project timeline, organization, and status.',
+                                'Set project organization and status.',
                             child: LayoutBuilder(
                               builder: (context, constraints) {
                                 final twoColumns = constraints.maxWidth >= 620;
                                 if (!twoColumns) {
                                   return Column(
                                     children: [
-                                      _buildDateField('Project Due Date',
-                                          _datedueController,
-                                          required: true),
-                                      const SizedBox(height: 18),
                                       _buildStatusDropdown(),
-                                      const SizedBox(height: 18),
-                                      _buildDateField(
-                                          'Start Date', _startdateController,
-                                          required: true),
-                                      const SizedBox(height: 18),
-                                      _buildDateField(
-                                          'End Date', _enddateController,
-                                          required: true),
                                       const SizedBox(height: 18),
                                       _buildDropdownCompany(),
                                     ],
@@ -280,36 +192,11 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(
-                                          child: _buildDateField(
-                                              'Project Due Date',
-                                              _datedueController,
-                                              required: true),
-                                        ),
-                                        const SizedBox(width: 18),
                                         Expanded(child: _buildStatusDropdown()),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 18),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: _buildDateField('Start Date',
-                                              _startdateController,
-                                              required: true),
-                                        ),
                                         const SizedBox(width: 18),
-                                        Expanded(
-                                          child: _buildDateField(
-                                              'End Date', _enddateController,
-                                              required: true),
-                                        ),
+                                        Expanded(child: _buildDropdownCompany()),
                                       ],
                                     ),
-                                    const SizedBox(height: 18),
-                                    _buildDropdownCompany(),
                                   ],
                                 );
                               },
@@ -348,53 +235,20 @@ class _Managercreateproject2State extends State<Managercreateproject2> {
     );
   }
 
-  // --- UI Helper: Date Field ---
-  Widget _buildDateField(
-    String label,
-    TextEditingController controller, {
-    bool required = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FieldLabel(label, required: required),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: _fieldDecoration(
-            hintText: 'yyyy-mm-dd',
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.calendar_month_outlined,
-                  color: Colors.white, size: 22),
-              onPressed: () => _selectDate(context, controller),
-            ),
-          ),
-          onTap: () => _selectDate(context, controller),
-        ),
-      ],
-    );
-  }
-
   Widget _buildStatusDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _FieldLabel('Project Status', required: true),
         const SizedBox(height: 8),
-        _SelectBox<int>(
-          value: allCom.any((company) => company.id == _selectedComId)
-              ? _selectedComId
-              : null,
-          hint: allCom.isEmpty ? 'No companies available' : 'Select a company',
-          items: allCom.map((company) => company.id).toList(),
-          labelFor: (id) {
-            return allCom.firstWhere((company) => company.id == id).name;
+        _SelectBox<String>(
+          value: _selectedStatus,
+          hint: 'Select status',
+          items: _statusOptions,
+          labelFor: (status) => status,
+          onChanged: (value) {
+            if (value != null) setState(() => _selectedStatus = value);
           },
-          onChanged: allCom.isEmpty
-              ? (_) {}
-              : (value) => setState(() => _selectedComId = value),
         ),
       ],
     );

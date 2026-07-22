@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:shiftsmart/models/company.dart';
 import 'package:shiftsmart/models/project.dart';
 import 'package:shiftsmart/screens/manager/manager_create_com.dart';
@@ -7,7 +6,6 @@ import 'package:shiftsmart/services/company_service.dart';
 import 'package:shiftsmart/services/project_service.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
-import 'package:shiftsmart/widgets/custom_date_picker.dart';
 import 'package:shiftsmart/widgets/sidenav.dart';
 import 'package:shiftsmart/widgets/success_dialog.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
@@ -25,9 +23,6 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _additionalController = TextEditingController();
-  final TextEditingController _datedueController = TextEditingController();
-  final TextEditingController _startdateController = TextEditingController();
-  final TextEditingController _enddateController = TextEditingController();
 
   final List<String> _statusOptions = const ['Active', 'Completed'];
   List<Company> allCom = [];
@@ -50,16 +45,6 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
     _descController.text = project.description;
     _additionalController.text = project.additionalRemark;
     _selectedStatus = _normalizeStatus(project.status);
-
-    if (project.projectDue.isNotEmpty) {
-      _datedueController.text = _dateOnly(project.projectDue);
-    }
-    if (project.startDate.isNotEmpty) {
-      _startdateController.text = _dateOnly(project.startDate);
-    }
-    if (project.endDate.isNotEmpty) {
-      _enddateController.text = _dateOnly(project.endDate);
-    }
   }
 
   void _selectExistingCompany() {
@@ -82,9 +67,6 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
     _nameController.dispose();
     _descController.dispose();
     _additionalController.dispose();
-    _datedueController.dispose();
-    _startdateController.dispose();
-    _enddateController.dispose();
     super.dispose();
   }
 
@@ -107,70 +89,12 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
     }
   }
 
-  Future<void> _selectDate(
-      BuildContext context, TextEditingController controller) async {
-    final initialDate = _parseDate(controller.text) ?? DateTime.now();
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      builder: datePickerThemeBuilder,
-    );
-
-    if (pickedDate != null) {
-      setState(() {
-        controller.text = DateFormat('yyyy-MM-dd').format(pickedDate);
-      });
-    }
-  }
-
-  DateTime? _parseDate(String value) {
-    if (value.trim().isEmpty) return null;
-    return DateTime.tryParse(value.trim());
-  }
-
-  String _dateOnly(String value) {
-    final parsed = _parseDate(value);
-    if (parsed != null) {
-      return DateFormat('yyyy-MM-dd').format(parsed);
-    }
-    return value.split('T').first;
-  }
-
-  String _dateTimeUtc(String value) {
-    return '${_dateOnly(value)}T00:00:00Z';
-  }
-
   Future<void> _submitProjectData() async {
     if (_nameController.text.trim().isEmpty ||
         _descController.text.trim().isEmpty ||
-        _datedueController.text.trim().isEmpty ||
-        _startdateController.text.trim().isEmpty ||
-        _enddateController.text.trim().isEmpty ||
         _selectedComId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill in all required fields")),
-      );
-      return;
-    }
-
-    final startDate = _parseDate(_startdateController.text);
-    final endDate = _parseDate(_enddateController.text);
-    final projectDue = _parseDate(_datedueController.text);
-
-    if (startDate == null || endDate == null || projectDue == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select valid project dates")),
-      );
-      return;
-    }
-
-    if (endDate.isBefore(startDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("End Date cannot be earlier than Start Date"),
-        ),
       );
       return;
     }
@@ -180,9 +104,6 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
       "CompanyId": _selectedComId,
       "Description": _descController.text.trim(),
       "AdditionalRemarks": _additionalController.text.trim(),
-      "ProjectDue": _dateTimeUtc(_datedueController.text),
-      "StartDate": _dateTimeUtc(_startdateController.text),
-      "EndDate": _dateTimeUtc(_enddateController.text),
       "Status": _selectedStatus,
     };
 
@@ -228,9 +149,11 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
   @override
   Widget build(BuildContext context) {
     final isEditMode = widget.project != null;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       drawer: const Sidenav(),
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFF1C2230),
       appBar: const Uppernavbar(showBackButton: true),
       body: Stack(
@@ -245,12 +168,19 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
                   children: [
                     Expanded(
                       child: ListView(
-                        padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: EdgeInsets.fromLTRB(
+                          0,
+                          20,
+                          0,
+                          keyboardInset + 20,
+                        ),
                         children: [
                           _SectionPanel(
                             title: 'Project Details',
                             subtitle:
-                                'Complete the project information, schedule, and ownership.',
+                                'Complete the project information and ownership.',
                             child: Column(
                               children: [
                                 _buildTextField(
@@ -272,25 +202,7 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
                                   minLines: 3,
                                 ),
                                 const SizedBox(height: 18),
-                                _buildDateField(
-                                  'Project Due Date',
-                                  _datedueController,
-                                  required: true,
-                                ),
-                                const SizedBox(height: 18),
                                 _buildStatusDropdown(),
-                                const SizedBox(height: 18),
-                                _buildDateField(
-                                  'Start Date',
-                                  _startdateController,
-                                  required: true,
-                                ),
-                                const SizedBox(height: 18),
-                                _buildDateField(
-                                  'End Date',
-                                  _enddateController,
-                                  required: true,
-                                ),
                                 const SizedBox(height: 18),
                                 _buildDropdownCompany(),
                               ],
@@ -346,34 +258,6 @@ class _ManagercreateprojectState extends State<Managercreateproject> {
           maxLines: minLines == 1 ? 1 : 6,
           style: const TextStyle(color: Colors.white, fontSize: 16),
           decoration: _fieldDecoration(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDateField(
-    String label,
-    TextEditingController controller, {
-    bool required = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FieldLabel(label, required: required),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: _fieldDecoration(
-            hintText: 'yyyy-mm-dd',
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.calendar_month_outlined,
-                  color: Colors.white, size: 22),
-              onPressed: () => _selectDate(context, controller),
-            ),
-          ),
-          onTap: () => _selectDate(context, controller),
         ),
       ],
     );

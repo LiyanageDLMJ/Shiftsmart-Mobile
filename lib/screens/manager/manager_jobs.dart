@@ -79,17 +79,6 @@ class _ManagerjobsState extends State<Managerjobs>
     });
   }
 
-  DateTime? _parseDate(String value) {
-    if (value.trim().isEmpty) return null;
-    return DateTime.tryParse(value);
-  }
-
-  String _formatDisplayDate(String value) {
-    final date = _parseDate(value);
-    if (date == null) return 'No date';
-    return DateFormat('d MMMM yyyy').format(date);
-  }
-
   String _formatShiftDate(DateTime date) {
     return DateFormat('d MMMM yyyy').format(date);
   }
@@ -207,34 +196,6 @@ class _ManagerjobsState extends State<Managerjobs>
           ),
         ),
       ),
-    );
-  }
-
-  ({String text, Color backgroundColor, Color textColor})? _dueBadge(Job job) {
-    final dueDate = _parseDate(job.jobDueDate);
-    if (dueDate == null) return null;
-
-    final today = DateTime.now();
-    final todayOnly = DateTime(today.year, today.month, today.day);
-    final dueOnly = DateTime(dueDate.year, dueDate.month, dueDate.day);
-    final days = dueOnly.difference(todayOnly).inDays;
-
-    if (days < 0) {
-      return (
-        text: 'Overdue',
-        backgroundColor: const Color(0xFFC0392B),
-        textColor: Colors.white,
-      );
-    }
-
-    return (
-      text: days == 0
-          ? 'Today'
-          : days == 1
-              ? '1 day left'
-              : '$days days left',
-      backgroundColor: const Color(0xFFF1C232),
-      textColor: Colors.black,
     );
   }
 
@@ -825,7 +786,6 @@ class _ManagerjobsState extends State<Managerjobs>
 
   Widget _buildJobListItem(Job job) {
     final statusColor = _statusColor(job.status);
-    final dueBadge = _dueBadge(job);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -876,39 +836,6 @@ class _ManagerjobsState extends State<Managerjobs>
               const SizedBox(width: 10),
               const Icon(Icons.arrow_forward_ios,
                   color: Colors.white70, size: 18),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                "Start Date : ${_formatDisplayDate(job.startDate)}",
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              if (dueBadge != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: dueBadge.backgroundColor,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    dueBadge.text,
-                    style: TextStyle(
-                      color: dueBadge.textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              Text(
-                "Due Date : ${_formatDisplayDate(job.jobDueDate)}",
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
             ],
           ),
         ],
@@ -1179,8 +1106,6 @@ class _ManagerjobsState extends State<Managerjobs>
     );
   }
 }
-
-
 
 
 

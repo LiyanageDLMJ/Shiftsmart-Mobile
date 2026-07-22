@@ -188,9 +188,11 @@ class _ManagercreatecomState extends State<Managercreatecom> {
   @override
   Widget build(BuildContext context) {
     final isEditMode = widget.company != null;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       drawer: const Sidenav(),
+      resizeToAvoidBottomInset: false,
       backgroundColor: ManagerScreenStyle.pageBg,
       appBar: const Uppernavbar(
         showBackButton: true,
@@ -203,7 +205,14 @@ class _ManagercreatecomState extends State<Managercreatecom> {
             child: ManagerFormShell(
               title: isEditMode ? "UPDATE COMPANY" : "CREATE COMPANY",
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  20,
+                  0,
+                  keyboardInset + 20,
+                ),
                 children: [
                   ManagerSectionPanel(
                     title: 'Company Details',
@@ -487,4 +496,3 @@ class _ManagercreatecomState extends State<Managercreatecom> {
     );
   }
 }
-

@@ -20,7 +20,7 @@ class NotificationService {
   static const MethodChannel _nativePushChannel =
       MethodChannel('shiftsmart/native_push');
 
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  FirebaseMessaging get _firebaseMessaging => FirebaseMessaging.instance;
   final ApiClient _apiClient = ApiClient();
   static bool _listenersConfigured = false;
   static bool _deferredRegistrationInProgress = false;
@@ -57,6 +57,11 @@ class NotificationService {
     void Function(RemoteMessage)? onNotificationOpenedApp,
   }) async {
     try {
+      if (Firebase.apps.isEmpty) {
+        debugPrint("FCM initialization skipped: Firebase is not initialized.");
+        return;
+      }
+
       NotificationSettings settings =
           await _firebaseMessaging.requestPermission(
         alert: true,

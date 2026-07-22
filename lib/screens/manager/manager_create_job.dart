@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shiftsmart/services/job_service.dart';
 import 'package:shiftsmart/services/project_service.dart';
 import 'package:shiftsmart/services/site_service.dart';
-import 'package:shiftsmart/widgets/custom_date_picker.dart';
 import 'package:shiftsmart/models/job.dart';
 import 'package:shiftsmart/models/job_role.dart';
 import 'package:shiftsmart/models/job_role_type.dart';
@@ -32,8 +31,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
   // Controllers
   final TextEditingController _jobNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _startDateController = TextEditingController();
-  final TextEditingController _endDateController = TextEditingController();
 
   // Data Lists
   List<Project> _projects = [];
@@ -62,8 +59,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
   void dispose() {
     _jobNameController.dispose();
     _descriptionController.dispose();
-    _startDateController.dispose();
-    _endDateController.dispose();
     super.dispose();
   }
 
@@ -159,13 +154,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
   void _populateExistingJobFields(Job job) {
     _jobNameController.text = job.title;
     _descriptionController.text = job.description;
-    _startDateController.text = _dateOnly(job.startDate);
-    _endDateController.text = _dateOnly(job.jobDueDate);
-  }
-
-  String _dateOnly(String value) {
-    if (value.trim().isEmpty) return '';
-    return value.split('T').first.split(' ').first;
   }
 
   List<JobRole> _withRoleTypeNames(
@@ -196,22 +184,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
         .toList();
   }
 
-  // --- Date Picker Logic ---
-  Future<void> _selectDate(
-      BuildContext context, TextEditingController controller) async {
-    DateTime? pickedDate = await showDatePicker(
-        context: context,
-        initialDate: DateTime.now(),
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2100),
-        builder: datePickerThemeBuilder);
-    if (pickedDate != null) {
-      setState(() {
-        controller.text = "${pickedDate.toLocal()}".split(' ')[0];
-      });
-    }
-  }
-
   // --- Validation ---
   bool _validate() {
     // Section 1 validation
@@ -221,14 +193,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
     }
     if (_descriptionController.text.isEmpty) {
       _showError("Description is required.");
-      return false;
-    }
-    if (_startDateController.text.isEmpty) {
-      _showError("Start Date is required.");
-      return false;
-    }
-    if (_endDateController.text.isEmpty) {
-      _showError("Due Date is required.");
       return false;
     }
     if (_selectedProject == null) {
@@ -330,16 +294,11 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
 
     setState(() => _isSaving = true);
 
-    String startDate = "${_startDateController.text}T00:00:00Z";
-    String endDate = "${_endDateController.text}T00:00:00Z";
-
     final jobData = {
       "title": _jobNameController.text,
       "description": _descriptionController.text,
       "projectId": _selectedProject!.projectId,
       "siteId": _selectedSite!.siteId,
-      "startDate": startDate,
-      "jobDueDate": endDate,
       "jobRoles": _selectedJobRoles.map((role) => role.toJson()).toList(),
     };
 
@@ -539,7 +498,7 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
                                 ManagerSectionPanel(
                                   title: 'Job Details',
                                   subtitle:
-                                      'Add the job name, description, schedule, and project.',
+                                      'Add the job name, description, and project.',
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -554,12 +513,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
                                         maxLines: 3,
                                         required: true,
                                       ),
-                                      const SizedBox(height: 18),
-                                      _buildDateField(
-                                          "Start Date", _startDateController),
-                                      const SizedBox(height: 18),
-                                      _buildDateField(
-                                          "Due Date", _endDateController),
                                       const SizedBox(height: 18),
                                       _buildProjectDropdown(),
                                     ],
@@ -971,29 +924,6 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
     );
   }
 
-  Widget _buildDateField(String label, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ManagerFieldLabel(label, required: true),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-          decoration: managerFieldDecoration(
-            hintText: 'yyyy-mm-dd',
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.calendar_today, color: Colors.white70),
-              onPressed: () => _selectDate(context, controller),
-            ),
-          ),
-          onTap: () => _selectDate(context, controller),
-        ),
-      ],
-    );
-  }
-
   Widget _buildProjectDropdown() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1048,4 +978,3 @@ class _ManagerCreateJobState extends State<ManagerCreateJob> {
     );
   }
 }
-

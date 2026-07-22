@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shiftsmart/providers/tenant_provider.dart';
 import 'package:shiftsmart/screens/manager/manager_company_view.dart';
@@ -492,10 +491,6 @@ class _Managerprojectstate extends State<Managerprojects> {
                     title: project.name,
                     description: project.description,
                     status: project.status,
-                    startDate: DateFormat("yyyy-MM-dd")
-                        .format(DateTime.parse(project.startDate)),
-                    dueDate: DateFormat("yyyy-MM-dd")
-                        .format(DateTime.parse(project.projectDue)),
                     trailing: _buildStatusIcon(project.status),
                   ),
                 );
@@ -670,8 +665,6 @@ class _Managerprojectstate extends State<Managerprojects> {
       {required String title,
       required String description,
       required String status,
-      required String startDate,
-      required String dueDate,
       required Widget trailing}) {
     final normalizedStatus = status.trim().toLowerCase();
     final isCompleted =
@@ -719,16 +712,6 @@ class _Managerprojectstate extends State<Managerprojects> {
               ),
               const SizedBox(width: 8),
               const Icon(Icons.chevron_right, color: Colors.white54, size: 20)
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text("Start Date: $startDate",
-                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
-              const SizedBox(width: 16),
-              Text("Due Date: $dueDate",
-                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
             ],
           ),
         ],
