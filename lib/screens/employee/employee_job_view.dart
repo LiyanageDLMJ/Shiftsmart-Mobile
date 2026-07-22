@@ -61,15 +61,6 @@ class _EmployeeJobViewState extends State<EmployeeJobView> {
 
   // Fetches location details for this job
   Future<void> _fetchSite() async {
-    final jobSiteName = widget.job.siteName?.trim() ?? '';
-    if (jobSiteName.isNotEmpty) {
-      setState(() {
-        _site = _unknownSite(siteName: jobSiteName);
-        _loadingSite = false;
-      });
-      return;
-    }
-
     if (widget.job.siteId <= 0) {
       setState(() {
         _site = _unknownSite();
@@ -90,10 +81,10 @@ class _EmployeeJobViewState extends State<EmployeeJobView> {
     }
   }
 
-  Site _unknownSite({String siteName = 'Unknown Location'}) {
+  Site _unknownSite() {
     return Site(
       siteId: 0,
-      siteName: siteName,
+      siteName: 'Unknown Location',
       latitude: '',
       longitude: '',
       geoFenceType: '',
