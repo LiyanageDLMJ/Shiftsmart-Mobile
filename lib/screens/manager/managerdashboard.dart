@@ -308,11 +308,17 @@ class _ManagerdashboardState extends State<Managerdashboard> {
     }
   }
 
+  DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
   List<LeaveRequest> getTodayLeaveRequests() {
-    final today = DateTime.now();
+    final today = _dateOnly(DateTime.now());
     return _leaveRequests.where((req) {
+      final startDate = _dateOnly(req.startDate);
+      final endDate = _dateOnly(req.endDate);
       final isToday =
-          !today.isBefore(req.startDate) && !today.isAfter(req.endDate);
+          !today.isBefore(startDate) && !today.isAfter(endDate);
       final isApproved = req.status.toLowerCase() == 'approved';
       return isApproved && isToday;
     }).toList();
