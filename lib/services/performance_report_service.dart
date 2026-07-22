@@ -28,7 +28,7 @@ class PerformanceReportService {
       if (response.statusCode == 200) {
         if (response.body.isEmpty) throw Exception("Empty response");
 
-        return ReportEmployee.fromJson(jsonDecode(response.body));
+        return ReportEmployee.fromJson(_decodeReportObject(response.body));
       } else {
         debugPrint("Report failed: ${response.statusCode} - ${response.body}");
         throw Exception("Failed to load report");
@@ -54,7 +54,7 @@ class PerformanceReportService {
         if (response.body.isEmpty || response.body == "null") {
           throw Exception("No weekly data found.");
         }
-        return WeeklyReportEmployee.fromJson(jsonDecode(response.body));
+        return WeeklyReportEmployee.fromJson(_decodeReportObject(response.body));
       } else {
         debugPrint("Weekly report failed: ${response.statusCode}");
         throw Exception("Failed to fetch weekly report");
@@ -85,7 +85,19 @@ class PerformanceReportService {
         if (response.body.isEmpty || response.body == "null") {
           throw Exception("No data found for date range.");
         }
-        return WeeklyReportEmployee.fromJson(jsonDecode(response.body));
+        final reportJson = _decodeReportObject(response.body);
+        debugPrint("Date range report fields: ${reportJson.keys.join(', ')}");
+
+        final report = WeeklyReportEmployee.fromJson(reportJson);
+        debugPrint(
+          "Parsed date range report: employeeId=${report.employeeId}, "
+          "shifts=${report.numberOfShifts}, breaks=${report.totalBreakHours}, "
+          "late=${report.lateArrivals}, score=${report.performanceScore}",
+        );
+        return report.copyWith(
+          reportStart: report.reportStart.isEmpty ? startDate : null,
+          reportEnd: report.reportEnd.isEmpty ? endDate : null,
+        );
       } else {
         debugPrint("Date range report failed: ${response.statusCode}");
         throw Exception("Failed to fetch date range report");
@@ -94,5 +106,68 @@ class PerformanceReportService {
       debugPrint("Error generating date range report: $e");
       rethrow;
     }
+  }
+
+  Map<String, dynamic> _decodeReportObject(String body) {
+    final decoded = jsonDecode(body);
+    final report = _unwrapReportPayload(decoded);
+    if (report is Map<String, dynamic>) return report;
+    if (report is Map) return Map<String, dynamic>.from(report);
+
+    throw Exception("Invalid report response format");
+  }
+
+  dynamic _unwrapReportPayload(dynamic value) {
+    if (value is List) {
+      return value.isNotEmpty ? _unwrapReportPayload(value.first) : null;
+    }
+
+    if (value is Map) {
+      if (_hasReportFields(value)) return value;
+
+      for (final key in const [
+        'data',
+        'Data',
+        'report',
+        'Report',
+        'performanceReport',
+        'PerformanceReport',
+        'employeePerformanceReport',
+        'EmployeePerformanceReport',
+        'result',
+        'Result',
+        'item',
+        'Item',
+        'value',
+        'Value',
+      ]) {
+        if (value.containsKey(key)) {
+          final nested = value[key];
+          if (nested is Map || nested is List) return _unwrapReportPayload(nested);
+        }
+      }
+    }
+
+    return value;
+  }
+
+  bool _hasReportFields(Map value) {
+    for (final key in const [
+      'ReportId',
+      'reportId',
+      'EmployeeId',
+      'employeeId',
+      'EmployeeName',
+      'employeeName',
+      'NumberOfShifts',
+      'numberOfShifts',
+      'PerformanceScore',
+      'performanceScore',
+      'metrics',
+      'range',
+    ]) {
+      if (value.containsKey(key)) return true;
+    }
+    return false;
   }
 }
