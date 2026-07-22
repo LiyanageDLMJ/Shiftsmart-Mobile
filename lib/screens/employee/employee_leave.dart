@@ -881,13 +881,15 @@ class _EmployeeleaveState extends State<Employeeleave> {
       return;
     }
  
-    // Use the specialized 'my' endpoint for fetching leave history.
-    final requests = await _leaveService.fetchMyLeaveRequests();
+    final requests =
+        await _leaveService.fetchMyLeaveRequests(employeeId: employeeId);
+    final myRequests =
+        requests.where((request) => request.employeeId == employeeId).toList();
  
     if (mounted) {
       setState(() {
         _currentEmployeeId = employeeId;
-        _leaveRequests = requests
+        _leaveRequests = myRequests
             .map((r) => {
                   'LeaveRequestId': r.leaveRequestId,
                   'EmployeeId': r.employeeId,

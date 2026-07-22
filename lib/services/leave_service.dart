@@ -298,24 +298,15 @@ class LeaveService {
       debugPrint("LeaveService: Status ${response.statusCode}");
  
       if (response.statusCode == 200) {
-        final dynamic jsonData = jsonDecode(response.body);
-        List<dynamic> rawList = [];
- 
-        if (jsonData is List) {
-          rawList = jsonData;
-        } else if (jsonData is Map) {
-          rawList = (jsonData['leaves'] ??
-                  jsonData['data'] ??
-                  jsonData['leaveRequests'] ??
-                  jsonData['value'] ??
-                  []) as List<dynamic>;
-        }
+        final rawList = _extractLeaveList(jsonDecode(response.body));
  
         debugPrint(
             "LeaveService: Fetched ${rawList.length} total records.");
  
-        final allRequests =
-            rawList.map((item) => LeaveRequest.fromJson(item)).toList();
+        final allRequests = rawList
+            .whereType<Map>()
+            .map((item) => LeaveRequest.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
  
         // Client-side filter — safe because we own the full list from the
         // correct read endpoint.
@@ -409,7 +400,13 @@ class LeaveService {
   // ─── FETCH MY LEAVE REQUESTS ──────────────────────────────────────────────
   // Fetches leave history for the currently authenticated employee using the
   // specialized /leave/my endpoint.
-  Future<List<LeaveRequest>> fetchMyLeaveRequests() async {
+  Future<List<LeaveRequest>> fetchMyLeaveRequests({int? employeeId}) async {
+    if (leaveMyKey.isEmpty) {
+      debugPrint(
+          "LeaveService: LEAVE_MY_KEY is missing; using /leave/all fallback.");
+      return fetchLeaveRequests(employeeId: employeeId);
+    }
+
     final uri = Uri.parse('$baseUrl/leave/my').replace(queryParameters: {
       'code': leaveMyKey,
     });
@@ -427,30 +424,52 @@ class LeaveService {
       debugPrint("LeaveService: Status ${response.statusCode}");
  
       if (response.statusCode == 200) {
-        final dynamic jsonData = jsonDecode(response.body);
-        List<dynamic> rawList = [];
- 
-        if (jsonData is List) {
-          rawList = jsonData;
-        } else if (jsonData is Map) {
-          rawList = (jsonData['leaves'] ??
-                  jsonData['data'] ??
-                  jsonData['leaveRequests'] ??
-                  jsonData['value'] ??
-                  []) as List<dynamic>;
-        }
+        final rawList = _extractLeaveList(jsonDecode(response.body));
  
         debugPrint(
             "LeaveService: Fetched ${rawList.length} records from 'my' endpoint.");
-        return rawList.map((item) => LeaveRequest.fromJson(item)).toList();
+        final requests = rawList
+            .whereType<Map>()
+            .map((item) => LeaveRequest.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+        if (employeeId == null) return requests;
+        return requests.where((r) => r.employeeId == employeeId).toList();
       } else {
         debugPrint(
             "LeaveService: Failed to load my leaves. Status: ${response.statusCode}");
+        if (employeeId != null) return fetchLeaveRequests(employeeId: employeeId);
         return [];
       }
     } catch (e) {
       debugPrint("Error fetching my leave requests: $e");
+      if (employeeId != null) return fetchLeaveRequests(employeeId: employeeId);
       return [];
     }
+  }
+
+  List<dynamic> _extractLeaveList(dynamic jsonData) {
+    if (jsonData is List) return jsonData;
+
+    if (jsonData is Map) {
+      for (final key in const [
+        'leaves',
+        'Leaves',
+        'data',
+        'Data',
+        'leaveRequests',
+        'LeaveRequests',
+        'requests',
+        'Requests',
+        'value',
+        'Value',
+        'result',
+        'Result',
+      ]) {
+        final value = jsonData[key];
+        if (value is List) return value;
+      }
+    }
+
+    return const [];
   }
 }

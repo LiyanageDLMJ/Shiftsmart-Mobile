@@ -28,6 +28,13 @@ class LeaveRequest {
   });
 
   factory LeaveRequest.fromJson(Map<String, dynamic> json) {
+    dynamic read(List<String> keys) {
+      for (final key in keys) {
+        if (json.containsKey(key)) return json[key];
+      }
+      return null;
+    }
+
     int parseId(dynamic val) {
       if (val == null) return 0;
       if (val is int) return val;
@@ -36,21 +43,46 @@ class LeaveRequest {
       return 0;
     }
 
+    String parseString(dynamic val, {String fallback = ''}) {
+      if (val == null || val.toString().trim().isEmpty) return fallback;
+      return val.toString().trim();
+    }
+
     return LeaveRequest(
-      leaveRequestId: parseId(json['LeaveRequestId']),
-      employeeId: parseId(json['EmployeeId']),
-      employeeName: json['EmployeeName'] ?? '',
-      leaveType: json['LeaveType'] ?? '',
-      startDate: parseServerDateTime(json['StartDate']?.toString() ?? '') ??
+      leaveRequestId: parseId(read(const [
+        'LeaveRequestId',
+        'leaveRequestId',
+        'Id',
+        'id',
+      ])),
+      employeeId: parseId(read(const ['EmployeeId', 'employeeId'])),
+      employeeName: parseString(read(const [
+        'EmployeeName',
+        'employeeName',
+        'FullName',
+        'fullName',
+      ])),
+      leaveType: parseString(read(const ['LeaveType', 'leaveType'])),
+      startDate: parseServerDateTime(
+              read(const ['StartDate', 'startDate'])?.toString() ?? '') ??
           DateTime.now(),
-      endDate: parseServerDateTime(json['EndDate']?.toString() ?? '') ??
+      endDate: parseServerDateTime(
+              read(const ['EndDate', 'endDate'])?.toString() ?? '') ??
           DateTime.now(),
-      reason: json['Reason'] ?? '',
-      rejectionReason: json['RejectionReason'] ?? json['rejectionReason'] ?? '',
-      status: json['Status'] ?? 'Pending',
-      requestedAt: parseServerDateTime(json['RequestedAt']?.toString() ?? '') ??
+      reason: parseString(read(const ['Reason', 'reason'])),
+      rejectionReason: parseString(read(const [
+        'RejectionReason',
+        'rejectionReason',
+        'RejectReason',
+        'rejectReason',
+      ])),
+      status: parseString(read(const ['Status', 'status']), fallback: 'Pending'),
+      requestedAt: parseServerDateTime(
+              read(const ['RequestedAt', 'requestedAt', 'CreatedAt', 'createdAt'])
+                      ?.toString() ??
+                  '') ??
           DateTime.now(),
-      tenantId: parseId(json['TenantId']),
+      tenantId: parseId(read(const ['TenantId', 'tenantId'])),
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:shiftsmart/models/job_role.dart';
 
 class Job {
   final int jobId;
+  final int tenantId;
   final String title;
   final String description;
   final String startDate;
@@ -15,10 +16,16 @@ class Job {
   final String? endTime;
   final int totalEstimatedTime;
   final String jobImageUrl;
+  final String createdAt;
+  final String? updatedAt;
+  final String? completedAt;
+  final String? companyName;
+  final String? siteName;
   final List<JobRole> jobRoles;
 
   Job({
     required this.jobId,
+    this.tenantId = 0,
     required this.title,
     required this.description,
     required this.startDate,
@@ -32,28 +39,38 @@ class Job {
     this.endTime,
     required this.totalEstimatedTime,
     required this.jobImageUrl,
+    this.createdAt = '',
+    this.updatedAt,
+    this.completedAt,
+    this.companyName,
+    this.siteName,
     required this.jobRoles,
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
     try {
       return Job(
-        jobId: json['JobId'] ?? json['jobId'] ?? 0,
-        title: json['Title'] ?? json['title'] ?? 'Unknown Title',
-        description: json['Description'] ?? json['description'] ?? '',
-        startDate: json['StartDate'] ?? json['startDate'] ?? '',
-        jobDueDate: json['JobDueDate'] ?? json['jobDueDate'] ?? '',
-        status: json['Status'] ?? json['status'] ?? 'Unknown',
-        projectId: json['ProjectId'] ?? json['projectId'] ?? 0,
-        siteId: json['SiteId'] ?? json['siteId'] ?? 0,
-        shiftId: json['ShiftId'] ?? json['shiftId'] as int?,
-        employeeId: json['EmployeeId'] ?? json['employeeId'] as int?,
+        jobId: _readInt(json['JobId']),
+        tenantId: _readInt(json['TenantId']),
+        title: _readString(json['Title'] ?? json['name'],
+            fallback: 'Unknown Title'),
+        description: _readString(json['Description']),
+        status: _readString(json['Status'], fallback: 'Unknown'),
+        projectId: _readInt(json['ProjectId']),
+        siteId: _readInt(json['SiteId']),
+        startDate: _readString(json['StartDate']),
+        jobDueDate: _readString(json['JobDueDate'] ?? json['projectDue']),
+        totalEstimatedTime: _readInt(json['TotalEstimatedTime']),
+        jobImageUrl: _readString(json['JobImageUrl']),
+        createdAt: _readString(json['CreatedAt']),
+        updatedAt: _readNullableString(json['UpdatedAt']),
+        completedAt: _readNullableString(json['CompletedAt']),
+        companyName: _readNullableString(json['companyName']),
+        siteName: _readNullableString(json['siteName']),
+        shiftId: _readNullableInt(json['ShiftId'] ?? json['shiftId']),
+        employeeId: _readNullableInt(json['EmployeeId'] ?? json['employeeId']),
         startTime: json['StartTime'] ?? json['startTime'] as String?,
         endTime: json['EndTime'] ?? json['endTime'] as String?,
-        totalEstimatedTime:
-            json['TotalEstimatedTime'] ?? json['totalEstimatedTime'] ?? 0,
-        jobImageUrl:
-            (json['JobImageUrl'] ?? json['jobImageUrl'] ?? '').toString(),
         jobRoles: ((json['JobRoles'] ?? json['jobRoles']) as List<dynamic>?)
                 ?.map((role) => JobRole.fromJson(role))
                 .toList() ??
@@ -66,22 +83,53 @@ class Job {
     }
   }
 
+  static int _readInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim()) ?? 0;
+    return 0;
+  }
+
+  static String _readString(dynamic value, {String fallback = ''}) {
+    if (value == null || value.toString().trim().isEmpty) return fallback;
+    return value.toString().trim();
+  }
+
+  static String? _readNullableString(dynamic value) {
+    final parsed = _readString(value);
+    return parsed.isEmpty ? null : parsed;
+  }
+
+  static int? _readNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'JobId': jobId,
+      'TenantId': tenantId,
       'Title': title,
       'Description': description,
-      'StartDate': startDate,
-      'JobDueDate': jobDueDate,
       'Status': status,
       'ProjectId': projectId,
       'SiteId': siteId,
+      'StartDate': startDate,
+      'JobDueDate': jobDueDate,
+      'TotalEstimatedTime': totalEstimatedTime,
+      'JobImageUrl': jobImageUrl,
+      'CreatedAt': createdAt,
+      'UpdatedAt': updatedAt,
+      'CompletedAt': completedAt,
+      'companyName': companyName,
+      'siteName': siteName,
       'shiftId': shiftId,
       'employeeId': employeeId,
       'startTime': startTime,
       'endTime': endTime,
-      'TotalEstimatedTime': totalEstimatedTime,
-      'JobImageUrl': jobImageUrl,
       'JobRoles': jobRoles.map((role) => role.toJson()).toList(),
     };
   }

@@ -61,30 +61,46 @@ class _EmployeeJobViewState extends State<EmployeeJobView> {
 
   // Fetches location details for this job
   Future<void> _fetchSite() async {
-    try {
-      final sites = await _siteService.fetchAllSites();
+    final jobSiteName = widget.job.siteName?.trim() ?? '';
+    if (jobSiteName.isNotEmpty) {
       setState(() {
-        _site = sites.firstWhere(
-          (s) => s.siteId == widget.job.siteId,
-          orElse: () {
-            return Site(
-              siteId: 0,
-              siteName: 'Unknown Location',
-              latitude: '',
-              longitude: '',
-              geoFenceType: '',
-              geoCoordinates: '',
-              radius: 0,
-              projectId: widget.job.projectId,
-            );
-          },
-        );
+        _site = _unknownSite(siteName: jobSiteName);
+        _loadingSite = false;
+      });
+      return;
+    }
+
+    if (widget.job.siteId <= 0) {
+      setState(() {
+        _site = _unknownSite();
+        _loadingSite = false;
+      });
+      return;
+    }
+
+    try {
+      final site = await _siteService.fetchSiteById(widget.job.siteId);
+      setState(() {
+        _site = site ?? _unknownSite();
         _loadingSite = false;
       });
     } catch (e) {
       print("Error fetching site data: $e");
       setState(() => _loadingSite = false);
     }
+  }
+
+  Site _unknownSite({String siteName = 'Unknown Location'}) {
+    return Site(
+      siteId: 0,
+      siteName: siteName,
+      latitude: '',
+      longitude: '',
+      geoFenceType: '',
+      geoCoordinates: '',
+      radius: 0,
+      projectId: widget.job.projectId,
+    );
   }
 
   // Loads specific shifts assigned to this employee for this job
@@ -154,9 +170,6 @@ class _EmployeeJobViewState extends State<EmployeeJobView> {
     );
   }
 
-  // Helper to format date strings
-  String _formatDate(String dt) => dt.contains('T') ? dt.split('T')[0] : dt;
-
   @override
   Widget build(BuildContext context) {
     final screenW = MediaQuery.of(context).size.width;
@@ -206,12 +219,6 @@ class _EmployeeJobViewState extends State<EmployeeJobView> {
                             const SizedBox(height: 15),
                             _infoRow("Estimated Time",
                                 "${widget.job.totalEstimatedTime} Hrs"),
-                            const SizedBox(height: 15),
-                            _infoRow(
-                                "Due Date", _formatDate(widget.job.jobDueDate)),
-                            const SizedBox(height: 15),
-                            _infoRow("Start Date",
-                                _formatDate(widget.job.startDate)),
                             const SizedBox(height: 15),
 
                             // Media Button

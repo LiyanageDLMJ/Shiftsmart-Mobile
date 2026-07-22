@@ -99,9 +99,8 @@ class SiteService {
       final response = await _apiClient.get(url, useAuth: true);
 
       if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        // Convert JSON directly to Site object
-        return Site.fromJson(jsonData);
+        final siteData = _extractMap(jsonDecode(response.body));
+        return siteData == null ? null : Site.fromJson(siteData);
       } else {
         debugPrint("Failed to fetch site: ${response.statusCode}");
         return null;
@@ -125,9 +124,12 @@ class SiteService {
           " SiteService Body Snippet: ${response.body.length > 500 ? response.body.substring(0, 500) : response.body}");
 
       if (response.statusCode == 200) {
-        final List<dynamic> jsonData = jsonDecode(response.body);
+        final List<dynamic> jsonData = _extractList(jsonDecode(response.body));
         debugPrint(" SiteService: Found ${jsonData.length} sites.");
-        return jsonData.map((e) => Site.fromJson(e)).toList();
+        return jsonData
+            .whereType<Map>()
+            .map((e) => Site.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
       } else {
         debugPrint(
             " SiteService: Failed to load sites. Status: ${response.statusCode}");
@@ -137,6 +139,39 @@ class SiteService {
       debugPrint(" SiteService: Exception fetching sites: $e");
       return [];
     }
+  }
+
+  Map<String, dynamic>? _extractMap(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      for (final key in const ['site', 'Site', 'data', 'Data', 'value', 'Value']) {
+        final nested = data[key];
+        if (nested is Map<String, dynamic>) return nested;
+        if (nested is Map) return Map<String, dynamic>.from(nested);
+      }
+      return data;
+    }
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return null;
+  }
+
+  List<dynamic> _extractList(dynamic data) {
+    if (data is List) return data;
+    if (data is Map) {
+      for (final key in const [
+        'sites',
+        'Sites',
+        'data',
+        'Data',
+        'items',
+        'Items',
+        'value',
+        'Value',
+      ]) {
+        final nested = data[key];
+        if (nested is List) return nested;
+      }
+    }
+    return const [];
   }
 
   // --- FETCH EMPLOYEES IN SITE ---

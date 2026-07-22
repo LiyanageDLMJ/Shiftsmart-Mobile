@@ -119,7 +119,10 @@ class _ManagerJobViewState extends State<ManagerJobView> {
   }
 
   Widget _buildDetailsPanel() {
-    final location = project?.sites
+    final jobSiteName = widget.job.siteName?.trim() ?? '';
+    final location = jobSiteName.isNotEmpty
+        ? jobSiteName
+        : project?.sites
             .firstWhere(
               (s) => s.siteId == widget.job.siteId,
               orElse: () => Site(
@@ -134,7 +137,7 @@ class _ManagerJobViewState extends State<ManagerJobView> {
               ),
             )
             .siteName ??
-        'Unknown Location';
+            'Unknown Location';
     final isCompleted = widget.job.status.trim().toLowerCase() == 'completed';
 
     return Container(
@@ -187,18 +190,6 @@ class _ManagerJobViewState extends State<ManagerJobView> {
                           'LOCATION',
                           location,
                           Icons.location_on_rounded,
-                        ),
-                        _detailTile(
-                          width,
-                          'START DATE',
-                          _formatDate(widget.job.startDate),
-                          Icons.calendar_month_rounded,
-                        ),
-                        _detailTile(
-                          width,
-                          'DUE DATE',
-                          _formatDate(widget.job.jobDueDate),
-                          Icons.calendar_month_rounded,
                         ),
                         _detailTile(
                           width,
