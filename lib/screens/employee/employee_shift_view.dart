@@ -276,6 +276,10 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     }
   }
 
+  bool _isBeforeScheduledEnd(DateTime time) {
+    return time.isBefore(_getScheduledEndDateTime());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -300,6 +304,12 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   }
 
   void _syncAttendanceEvidence(Map<String, dynamic> data) {
+    final nextClockInTime = parseServerDateTime(_fieldValue(data, [
+      'ClockInTime',
+    ]));
+    final nextClockOutTime = parseServerDateTime(_fieldValue(data, [
+      'ClockOutTime',
+    ]));
     final nextClockInPhotoUrl = _stringValue(data, [
       'ClockInPhotoUrl',
       'clockInPhotoUrl',
@@ -321,6 +331,12 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
       'reason',
     ]);
 
+    if (nextClockInTime != null && nextClockInTime.year > 1900) {
+      clockInTime = nextClockInTime;
+    }
+    if (nextClockOutTime != null && nextClockOutTime.year > 1900) {
+      clockOutTime = nextClockOutTime;
+    }
     clockInPhotoUrl = nextClockInPhotoUrl ?? clockInPhotoUrl;
     clockOutPhotoUrl = nextClockOutPhotoUrl ?? clockOutPhotoUrl;
     earlyExitReason = nextEarlyExitReason ?? earlyExitReason;
@@ -399,13 +415,14 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             "Pending";
         final responseClockInTime = myResponse == null
             ? null
-            : parseServerDateTime(myResponse['ClockInTime'] ??
-                myResponse['clockInTime'] ??
-                myResponse['ClockinTime']);
+            : parseServerDateTime(_fieldValue(myResponse, const [
+                'ClockInTime',
+              ]));
         final responseClockOutTime = myResponse == null
             ? null
-            : parseServerDateTime(
-                myResponse['ClockOutTime'] ?? myResponse['clockOutTime']);
+            : parseServerDateTime(_fieldValue(myResponse, const [
+                'ClockOutTime',
+              ]));
 
         setState(() {
           shiftDetails = shift;
@@ -417,7 +434,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
                   myResponse?['Reason'] ??
                   myResponse?['reason'])
               ?.toString();
-          if (responseClockInTime != null && clockInTime == null) {
+          if (responseClockInTime != null && responseClockInTime.year > 1900) {
             clockInTime = responseClockInTime;
           }
           if (responseClockOutTime != null &&
@@ -567,6 +584,19 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
       } else {
         debugPrint(
             "Site Loading: Failed. Site not found for ID: $targetSiteId");
+        if (currentSite == null && mounted) {
+          final fallbackName = (shiftDetails?['Location'] ??
+                  shiftDetails?['location'] ??
+                  widget.job.title)
+              .toString()
+              .trim();
+          setState(() {
+            currentSite = Site(
+              siteId: targetSiteId,
+              siteName: fallbackName.isEmpty ? 'Shift Site' : fallbackName,
+            );
+          });
+        }
       }
     } catch (e) {
       debugPrint('Site Loading: Error: $e');
@@ -653,12 +683,11 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
           setState(() {
             _syncAttendanceEvidence(shift);
 
-            // Sync Clock In
+            // Sync Clock In from backend. Backend attendance is authoritative
+            // over any locally cached progress from a previous app session.
             if (backendClockInTime != null) {
-              if (attendanceId == null || clockInTime == null) {
-                clockInTime = backendClockInTime;
-                attendanceId = backendAttendanceId;
-              }
+              clockInTime = backendClockInTime;
+              attendanceId = backendAttendanceId ?? attendanceId;
             }
 
             // Ensure we keep attendanceId if the backend returns an attendance record
@@ -1070,11 +1099,9 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     }
 
     final now = DateTime.now();
-    final scheduledEnd = _getScheduledEndDateTime();
 
     //  CHECK: Is it Early Departure?
-    bool isEarly =
-        now.isBefore(scheduledEnd.subtract(const Duration(minutes: 5)));
+    bool isEarly = _isBeforeScheduledEnd(now);
 
     String? earlyExitReason;
 
@@ -1174,7 +1201,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         return; // User cancelled or didn't provide reason
       }
 
-      earlyExitReason = reason;
+      earlyExitReason = reason.trim();
     }
 
     if (mounted) setState(() => isLoading = true);
@@ -1226,6 +1253,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             }
             if (isEarly && earlyExitReason != null) {
               this.earlyExitReason = earlyExitReason;
+            } else if (!isEarly) {
+              this.earlyExitReason = null;
             }
             clockOutPhoto =
                 _capturedPhotos.isNotEmpty ? _capturedPhotos.first : null;
@@ -1626,9 +1655,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
 
     bool isEarlyDeparture = false;
     if (clockOutTime != null) {
-      final scheduledEnd = _getScheduledEndDateTime();
-      isEarlyDeparture = clockOutTime!
-          .isBefore(scheduledEnd.subtract(const Duration(minutes: 1)));
+      isEarlyDeparture = _isBeforeScheduledEnd(clockOutTime!);
     }
 
     return Column(
@@ -1785,10 +1812,9 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
 
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
-    final showEarlyExitReason = _wasEarlyDeparture();
-    final earlyExitReasonText = earlyExitReason?.trim().isNotEmpty == true
-        ? earlyExitReason!
-        : 'No reason provided';
+    final earlyExitReasonText = earlyExitReason?.trim();
+    final showEarlyExitReason =
+        _wasEarlyDeparture() && earlyExitReasonText?.isNotEmpty == true;
     final hasAttendanceEvidence =
         _hasAttendancePhoto(clockInPhoto, clockInPhotoUrl) ||
             _hasAttendancePhoto(clockOutPhoto, clockOutPhotoUrl);
@@ -1944,9 +1970,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
 
   bool _wasEarlyDeparture() {
     if (clockOutTime == null) return false;
-    final scheduledEnd = _getScheduledEndDateTime();
-    return clockOutTime!
-        .isBefore(scheduledEnd.subtract(const Duration(minutes: 1)));
+    return _isBeforeScheduledEnd(clockOutTime!);
   }
 
   bool _hasAttendancePhoto(File? file, String? url) {

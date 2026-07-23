@@ -28,6 +28,13 @@ class EmployeeResponse {
   });
 
   factory EmployeeResponse.fromJson(Map<String, dynamic> json) {
+    dynamic read(List<String> keys) {
+      for (final key in keys) {
+        if (json.containsKey(key)) return json[key];
+      }
+      return null;
+    }
+
     int parseId(dynamic val) {
       if (val == null) return 0;
       if (val is int) return val;
@@ -36,25 +43,24 @@ class EmployeeResponse {
     }
 
     return EmployeeResponse(
-      employeeId: parseId(json['EmployeeId'] ?? json['employeeId']),
-      status: (json['Status'] ?? json['status'])?.toString() ?? 'Pending',
-      reason: (json['RejectionReason'] ?? json['rejectionReason'])?.toString(),
+      employeeId: parseId(read(const ['EmployeeId', 'employeeId'])),
+      status: read(const ['Status', 'status'])?.toString() ?? 'Pending',
+      reason: read(const ['RejectionReason', 'rejectionReason'])?.toString(),
       respondedAt:
-          parseServerDateTime(json['ResponseDate'] ?? json['responseDate']),
-      clockInTime:
-          parseServerDateTime(json['ClockInTime'] ?? json['clockInTime']),
-      clockOutTime:
-          parseServerDateTime(json['ClockOutTime'] ?? json['clockOutTime']),
-      isEarlyExit: json['IsEarlyExit'] == true ||
-          json['IsEarlyExit']?.toString().toLowerCase() == 'true' ||
-          json['isEarlyExit'] == true ||
-          json['isEarlyExit']?.toString().toLowerCase() == 'true',
+          parseServerDateTime(read(const ['ResponseDate', 'responseDate'])),
+      clockInTime: parseServerDateTime(read(const ['ClockInTime'])),
+      clockOutTime: parseServerDateTime(read(const ['ClockOutTime'])),
+      isEarlyExit: read(const ['IsEarlyExit', 'isEarlyExit']) == true ||
+          read(const ['IsEarlyExit', 'isEarlyExit'])
+                  ?.toString()
+                  .toLowerCase() ==
+              'true',
       earlyExitReason:
-          (json['EarlyExitReason'] ?? json['earlyExitReason'])?.toString(),
+          read(const ['EarlyExitReason', 'earlyExitReason'])?.toString(),
       approvalStatus:
-          (json['ApprovalStatus'] ?? json['approvalStatus'])?.toString(),
+          read(const ['ApprovalStatus', 'approvalStatus'])?.toString(),
       completedAt: DateTime.tryParse(
-          (json['CompletedAt'] ?? json['completedAt'])?.toString() ?? ''),
+          read(const ['CompletedAt', 'completedAt'])?.toString() ?? ''),
     );
   }
 
