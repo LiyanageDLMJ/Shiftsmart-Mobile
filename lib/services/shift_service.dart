@@ -264,6 +264,8 @@ class ShiftService {
   Map<String, dynamic> _normalizeUpdatePayload(
       int id, Map<String, dynamic> shiftData) {
     final payload = Map<String, dynamic>.from(shiftData)..['ShiftId'] = id;
+    final assignedEmployeeIds =
+        _readEmployeeIds(payload['AssignedEmployeeIds'] ?? payload['EmployeeIds']);
 
     final startDate = payload['StartDate']?.toString();
     if (startDate != null && startDate.isNotEmpty) {
@@ -273,7 +275,43 @@ class ShiftService {
     payload['StartTime'] = _timeOnly(payload['StartTime']);
     payload['EndTime'] = _timeOnly(payload['EndTime']);
 
+    if (assignedEmployeeIds.isNotEmpty) {
+      payload['AssignedEmployeeIds'] = assignedEmployeeIds;
+      payload['EmployeeIds'] = assignedEmployeeIds;
+      payload['Assignments'] = assignedEmployeeIds
+          .map((employeeId) => {
+                'EmployeeId': employeeId,
+                'Status': 'Pending',
+              })
+          .toList();
+    }
+
     return payload;
+  }
+
+  List<int> _readEmployeeIds(dynamic value) {
+    if (value is List) {
+      return value
+          .map((id) {
+            if (id is int) return id;
+            if (id is num) return id.toInt();
+            return int.tryParse(id.toString()) ?? 0;
+          })
+          .where((id) => id > 0)
+          .toSet()
+          .toList();
+    }
+
+    if (value is String && value.trim().isNotEmpty) {
+      return value
+          .split(',')
+          .map((id) => int.tryParse(id.trim()) ?? 0)
+          .where((id) => id > 0)
+          .toSet()
+          .toList();
+    }
+
+    return [];
   }
 
   String _timeOnly(dynamic value) {
@@ -298,6 +336,7 @@ class ShiftService {
       if (response.statusCode == 200 ||
           response.statusCode == 201 ||
           response.statusCode == 204) {
+        await _verifyUpdatedAssignments(id, payload);
         return true;
       }
 
@@ -310,6 +349,57 @@ class ShiftService {
       debugPrint('Exception in updateShift: $e');
       rethrow;
     }
+  }
+
+  Future<void> _verifyUpdatedAssignments(
+      int shiftId, Map<String, dynamic> payload) async {
+    final expectedEmployeeIds = _readEmployeeIds(payload['AssignedEmployeeIds']);
+    if (expectedEmployeeIds.isEmpty) return;
+
+    final latestShifts = await fetchAllShifts();
+    Shift? latestShift;
+    for (final shift in latestShifts) {
+      if (shift.shiftId == shiftId) {
+        latestShift = shift;
+        break;
+      }
+    }
+
+    if (latestShift == null) return;
+
+    final actualEmployeeIds = _assignedEmployeeIdsForShift(latestShift);
+    if (!_sameIdSet(expectedEmployeeIds, actualEmployeeIds)) {
+      throw Exception(
+        'Shift details were updated, but assigned employees did not change. '
+        'Please update the Shift_UpdateHandler backend to replace assignment records.',
+      );
+    }
+  }
+
+  List<int> _assignedEmployeeIdsForShift(Shift shift) {
+    final employeeIds = <int>{};
+
+    for (final employeeId in shift.assignedEmployeeIds) {
+      if (employeeId > 0) {
+        employeeIds.add(employeeId);
+      }
+    }
+
+    for (final response in shift.employeeResponses) {
+      if (response.employeeId > 0) {
+        employeeIds.add(response.employeeId);
+      }
+    }
+
+    return employeeIds.toList();
+  }
+
+  bool _sameIdSet(List<int> expected, List<int> actual) {
+    final expectedSet = expected.toSet();
+    final actualSet = actual.toSet();
+
+    return expectedSet.length == actualSet.length &&
+        expectedSet.every(actualSet.contains);
   }
 
   // 11. Delete Shift
@@ -334,5 +424,3 @@ class ShiftService {
     }
   }
 }
-
-

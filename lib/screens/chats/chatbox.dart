@@ -81,10 +81,32 @@ class _ChatboxState extends State<Chatbox> {
       _isLoading = false;
     });
 
+    await _markMessagesSeen(msgs);
+
     if (shouldScrollToLatest) {
       _hasScrolledToLatest = true;
       _scrollToLatest(animated: shouldAnimate);
     }
+  }
+
+  Future<void> _markMessagesSeen(List<Message> messages) async {
+    if (_userId == 0 || messages.isEmpty) return;
+
+    var latestSeen = 0;
+    for (final message in messages) {
+      final messageTime = message.createdAt.microsecondsSinceEpoch;
+      if (messageTime > latestSeen) {
+        latestSeen = messageTime;
+      }
+    }
+
+    if (latestSeen <= 0) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      'chat_seen_${_userId}_${widget.chatParticipantId}',
+      latestSeen,
+    );
   }
 
   String? _latestMessageKey(List<Message> messages) {

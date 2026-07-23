@@ -287,22 +287,55 @@ class _ManagercreateshiftState extends State<Managercreateshift> {
     return _dateOnly(date).isBefore(_todayOnly());
   }
 
+  bool _isApprovedLeaveStatus(String status) {
+    return status.trim().toLowerCase() == 'approved';
+  }
+
+  bool _isOnApprovedLeaveOnDate(int employeeId, DateTime shiftDate) {
+    final day = _dateOnly(shiftDate);
+
+    return allLeaves.any((leave) {
+      final leaveStart = _dateOnly(leave.startDate);
+      final leaveEnd = _dateOnly(leave.endDate);
+
+      return leave.employeeId == employeeId &&
+          _isApprovedLeaveStatus(leave.status) &&
+          !day.isBefore(leaveStart) &&
+          !day.isAfter(leaveEnd);
+    });
+  }
+
   bool isOnLeave(int employeeId, String shiftDateStr) {
     if (shiftDateStr.isEmpty) return false;
     try {
       final shiftDate = DateFormat('yyyy-MM-dd').parse(shiftDateStr);
-      for (final leave in allLeaves) {
-        if (leave.employeeId == employeeId &&
-            leave.status.toLowerCase() == 'approved' &&
-            !shiftDate.isBefore(leave.startDate) &&
-            !shiftDate.isAfter(leave.endDate)) {
-          return true;
-        }
-      }
+      return _isOnApprovedLeaveOnDate(employeeId, shiftDate);
     } catch (e) {
       return false;
     }
-    return false;
+  }
+
+  String? _firstApprovedLeaveDateForSelection(int employeeId) {
+    for (final date in _selectedDates) {
+      if (_isOnApprovedLeaveOnDate(employeeId, date)) {
+        return DateFormat('yyyy-MM-dd').format(date);
+      }
+    }
+    return null;
+  }
+
+  String? _firstShiftConflictDateForSelection(int employeeId) {
+    final start = _cleanTime(_starttimecontroller.text);
+    final end = _cleanTime(_endtimecontroller.text);
+    if (start.isEmpty || end.isEmpty) return null;
+
+    for (final date in _selectedDates) {
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      if (hasConflict(employeeId, dateStr, start, end)) {
+        return dateStr;
+      }
+    }
+    return null;
   }
 
   bool hasConflict(int employeeId, String selectedDate, String selectedStart,
@@ -1027,13 +1060,14 @@ class _ManagercreateshiftState extends State<Managercreateshift> {
                                 final fullName =
                                     employeeNameMap[employee.employeeId] ??
                                         employee.firstName;
-                                final hasCon = hasConflict(
-                                    employee.employeeId,
-                                    _dateController.text,
-                                    _starttimecontroller.text,
-                                    _endtimecontroller.text);
-                                final onL = isOnLeave(
-                                    employee.employeeId, _dateController.text);
+                                final conflictDate =
+                                    _firstShiftConflictDateForSelection(
+                                        employee.employeeId);
+                                final leaveDate =
+                                    _firstApprovedLeaveDateForSelection(
+                                        employee.employeeId);
+                                final hasCon = conflictDate != null;
+                                final onL = leaveDate != null;
 
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
@@ -1063,8 +1097,8 @@ class _ManagercreateshiftState extends State<Managercreateshift> {
                                       : (hasCon || onL)
                                           ? Text(
                                               hasCon
-                                                  ? " Scheduling Conflict"
-                                                  : " On Approved Leave",
+                                                  ? "Scheduling conflict on $conflictDate"
+                                                  : "On approved leave on $leaveDate",
                                               style: const TextStyle(
                                                   color: Colors.redAccent,
                                                   fontSize: 12))

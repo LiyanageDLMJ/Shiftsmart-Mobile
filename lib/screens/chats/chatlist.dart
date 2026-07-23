@@ -25,8 +25,11 @@ class _ChatlistState extends State<Chatlist> {
       GlobalKey<RefreshIndicatorState>();
   bool _isLoading = true;
   int _userId = 0;
+  int _newMessageTotal = 0;
+  Timer? _refreshTimer;
 
   List<ChatListItem> filteredChats = [];
+  Map<int, int> _unreadCounts = {};
 
   final ChatService _chatService = ChatService();
 
@@ -44,15 +47,36 @@ class _ChatlistState extends State<Chatlist> {
         _userId = id;
       });
       await _fetchChats();
+      _startChatPolling();
     }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startChatPolling() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted || _userId == 0) return;
+      _fetchChats();
+    });
   }
 
   Future<void> _fetchChats() async {
     try {
       final chatList = await _chatService.fetchChatList();
+      final unreadCounts = await _loadUnreadCounts(chatList);
+      final totalUnread =
+          unreadCounts.values.fold<int>(0, (total, count) => total + count);
+
       if (mounted) {
         setState(() {
           filteredChats = chatList;
+          _unreadCounts = unreadCounts;
+          _newMessageTotal = totalUnread;
           _isLoading = false;
         });
       }
@@ -60,6 +84,30 @@ class _ChatlistState extends State<Chatlist> {
       debugPrint("Error loading chats: $e");
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<Map<int, int>> _loadUnreadCounts(List<ChatListItem> chats) async {
+    if (_userId == 0 || chats.isEmpty) return {};
+
+    final prefs = await SharedPreferences.getInstance();
+    final entries = await Future.wait(chats.map((chat) async {
+      final seenAt = prefs.getInt('chat_seen_${_userId}_${chat.chatId}') ?? 0;
+
+      try {
+        final messages = await _chatService.fetchMessages(chat.chatId);
+        final unreadCount = messages.where((message) {
+          return message.senderId != _userId &&
+              message.createdAt.microsecondsSinceEpoch > seenAt;
+        }).length;
+
+        return MapEntry(chat.chatId, unreadCount);
+      } catch (e) {
+        debugPrint("Error loading unread count for chat ${chat.chatId}: $e");
+        return MapEntry(chat.chatId, 0);
+      }
+    }));
+
+    return Map<int, int>.fromEntries(entries);
   }
 
   String _formatLastMessageTime(DateTime? dt) {
@@ -73,6 +121,50 @@ class _ChatlistState extends State<Chatlist> {
     if (messageDate == today) return DateFormat('h:mm a').format(local);
     if (messageDate == yesterday) return "Yesterday";
     return DateFormat('d/M/yyyy').format(local);
+  }
+
+  Widget _buildNewMessageBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF163A5A),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF34C8E8), width: 1),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.mark_chat_unread_rounded,
+                color: Color(0xFF34C8E8), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _newMessageTotal == 1
+                    ? '1 new message'
+                    : '$_newMessageTotal new messages',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: _fetchChats,
+              child: const Text(
+                'Refresh',
+                style: TextStyle(
+                  color: Color(0xFF34C8E8),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void showSearchDialog(BuildContext context) {
@@ -171,6 +263,7 @@ class _ChatlistState extends State<Chatlist> {
                 ),
               ),
             ),
+            if (_newMessageTotal > 0) _buildNewMessageBanner(),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -192,6 +285,9 @@ class _ChatlistState extends State<Chatlist> {
                             itemCount: filteredChats.length,
                             itemBuilder: (context, index) {
                               final chat = filteredChats[index];
+                              final unreadCount =
+                                  _unreadCounts[chat.chatId] ?? 0;
+                              final hasUnread = unreadCount > 0;
 
                               return Padding(
                                 padding:
@@ -250,11 +346,13 @@ class _ChatlistState extends State<Chatlist> {
                                                   Expanded(
                                                     child: Text(
                                                       chat.partnerName,
-                                                      style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 16),
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight: hasUnread
+                                                            ? FontWeight.w800
+                                                            : FontWeight.bold,
+                                                        fontSize: 16,
+                                                      ),
                                                       maxLines: 1,
                                                       overflow:
                                                           TextOverflow.ellipsis,
@@ -264,27 +362,85 @@ class _ChatlistState extends State<Chatlist> {
                                                     padding:
                                                         const EdgeInsets.only(
                                                             right: 16.0),
-                                                    child: Text(
-                                                      _formatLastMessageTime(
-                                                          chat.lastMessageTime),
-                                                      style: const TextStyle(
-                                                          color: Colors.white54,
-                                                          fontSize: 12),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment.end,
+                                                      children: [
+                                                        Text(
+                                                          _formatLastMessageTime(
+                                                              chat
+                                                                  .lastMessageTime),
+                                                          style: TextStyle(
+                                                              color: hasUnread
+                                                                  ? const Color(
+                                                                      0xFF34C8E8)
+                                                                  : Colors
+                                                                      .white54,
+                                                              fontSize: 12,
+                                                              fontWeight: hasUnread
+                                                                  ? FontWeight
+                                                                      .bold
+                                                                  : FontWeight
+                                                                      .normal),
+                                                        ),
+                                                        if (hasUnread)
+                                                          Container(
+                                                            margin:
+                                                                const EdgeInsets
+                                                                    .only(top: 6),
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                              horizontal: 7,
+                                                              vertical: 2,
+                                                            ),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: const Color(
+                                                                  0xFF34C8E8),
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          999),
+                                                            ),
+                                                            child: Text(
+                                                              unreadCount > 99
+                                                                  ? '99+'
+                                                                  : unreadCount
+                                                                      .toString(),
+                                                              style:
+                                                                  const TextStyle(
+                                                                color:
+                                                                    Colors.white,
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                      ],
                                                     ),
                                                   ),
                                                 ],
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                  chat.lastMessage.isNotEmpty
-                                                      ? chat.lastMessage
-                                                      : "No messages yet",
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                      color: Colors.white70,
-                                                      fontSize: 13)),
+                                                chat.lastMessage.isNotEmpty
+                                                    ? chat.lastMessage
+                                                    : "No messages yet",
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: hasUnread
+                                                      ? Colors.white
+                                                      : Colors.white70,
+                                                  fontSize: 13,
+                                                  fontWeight: hasUnread
+                                                      ? FontWeight.w700
+                                                      : FontWeight.normal,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
