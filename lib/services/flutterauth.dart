@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -9,8 +10,6 @@ class Flutterauth {
   static const _clientId = '0f3aac95-9559-4ea4-b818-afac42e981ff';
   static const _tenantId = '8a8547b1-9090-4c51-8823-499d27b0d7ec';
   static const _redirectUri = 'msauth://com.example.shiftsmart/w5G662mc4o81BUzLaFO2xjZlnHw=';
-  static const _discoveryUrl =
-      'https://login.microsoftonline.com/$_tenantId/v2.0/.well-known/openid-configuration';
   static const _scopes = ['openid', 'profile', 'email'];
 
   final FlutterAppAuth _appAuth = FlutterAppAuth();
@@ -19,6 +18,22 @@ class Flutterauth {
   String? accessToken;
   String? idToken;
   Map<String, dynamic>? profile;
+
+  String get _discoveryUrl {
+    final value = dotenv.env['MICROSOFT_DISCOVERY_URL'] ?? '';
+    if (value.isEmpty) {
+      throw Exception('Missing MICROSOFT_DISCOVERY_URL');
+    }
+    return value;
+  }
+
+  String get _graphMeUrl {
+    final value = dotenv.env['MICROSOFT_GRAPH_ME_URL'] ?? '';
+    if (value.isEmpty) {
+      throw Exception('Missing MICROSOFT_GRAPH_ME_URL');
+    }
+    return value;
+  }
 
   Future<bool> signIn() async {
     try {
@@ -60,7 +75,7 @@ class Flutterauth {
     if (accessToken == null) return null;
 
     final response = await http.get(
-      Uri.parse('https://graph.microsoft.com/v1.0/me'),
+      Uri.parse(_graphMeUrl),
       headers: {
         'Authorization': 'Bearer $accessToken',
         'Accept': 'application/json',

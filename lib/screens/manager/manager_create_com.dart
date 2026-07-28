@@ -58,8 +58,10 @@ class _ManagercreatecomState extends State<Managercreatecom> {
 
   Future<List<Map<String, String>>> makeSuggestion(String input) async {
     final key = GoogleMapsHelper.apiKey;
+    final endpoint = dotenv.env['GOOGLE_PLACES_AUTOCOMPLETE_URL'] ?? '';
+    if (endpoint.isEmpty) return [];
     final url =
-        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$input&key=$key&sessiontoken=$tokenForSession";
+        "$endpoint?input=$input&key=$key&sessiontoken=$tokenForSession";
 
     try {
       final response = await http.get(

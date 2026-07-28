@@ -165,8 +165,12 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
     // Try Google Geocoding API first (much more reliable in simulators than native geocoding)
     try {
       final key = GoogleMapsHelper.apiKey;
+      final endpoint = dotenv.env['GOOGLE_GEOCODE_URL'] ?? '';
+      if (endpoint.isEmpty) {
+        throw Exception('Missing GOOGLE_GEOCODE_URL');
+      }
       final url =
-          "https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(address)}&key=$key";
+          "$endpoint?address=${Uri.encodeComponent(address)}&key=$key";
       final response = await http.get(
         Uri.parse(url),
         headers: GoogleMapsHelper.platformHeaders,
@@ -211,8 +215,9 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
   Future<void> _getPlaceDetails(String placeId) async {
     if (placeId.isEmpty) return;
     final key = GoogleMapsHelper.apiKey;
-    final url =
-        "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$key";
+    final endpoint = dotenv.env['GOOGLE_PLACE_DETAILS_URL'] ?? '';
+    if (endpoint.isEmpty) return;
+    final url = "$endpoint?place_id=$placeId&key=$key";
 
     try {
       final response = await http.get(
@@ -239,8 +244,10 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
   // --- Google Places Autocomplete ---
   Future<List<Map<String, String>>> makeSuggestion(String input) async {
     final key = GoogleMapsHelper.apiKey;
+    final endpoint = dotenv.env['GOOGLE_PLACES_AUTOCOMPLETE_URL'] ?? '';
+    if (endpoint.isEmpty) return [];
     final url =
-        "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$input&key=$key&sessiontoken=$tokenForSession";
+        "$endpoint?input=$input&key=$key&sessiontoken=$tokenForSession";
 
     try {
       final response = await http.get(

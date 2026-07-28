@@ -12,8 +12,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_client.dart';
 
 class NotificationService {
-  static const String _defaultNotificationBaseUrl =
-      'https://shiftsmart-notification-function-mt-dev.azurewebsites.net/api';
   static const String _defaultRegisterDeviceKey =
       '';
   static const String _defaultFirebaseProjectId = 'shift-smart-a34cb';
@@ -28,8 +26,13 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  String get baseUrl =>
-      dotenv.env['NOTIFICATION_BASE_URL'] ?? _defaultNotificationBaseUrl;
+  String get baseUrl {
+    final value = dotenv.env['NOTIFICATION_BASE_URL'] ?? '';
+    if (value.isEmpty) {
+      throw Exception('Missing NOTIFICATION_BASE_URL');
+    }
+    return value;
+  }
 
   String get mainKey => dotenv.env['GET_NOTIFICATIONS_KEY'] ?? '';
   String get registerKey =>
