@@ -19,8 +19,6 @@ class PerformanceReportService {
     // Endpoint: /report/by-employee/{id}
     final url = '$baseUrl/report/by-employee/$employeeId?code=$overallKey';
 
-    debugPrint("Attempting to GET Overall Report: $url");
-
     try {
       // Use ApiClient to send Bearer Token
       final response = await _apiClient.get(url, useAuth: true);
@@ -44,8 +42,6 @@ class PerformanceReportService {
       {required int employeeId}) async {
     // Endpoint: /report/weekly/{id}
     final url = '$baseUrl/report/weekly/$employeeId?code=$weeklyKey';
-
-    debugPrint("Attempting to GET Weekly Report: $url");
 
     try {
       final response = await _apiClient.get(url, useAuth: true);
@@ -75,8 +71,6 @@ class PerformanceReportService {
     // Note: We use dateRangeKey (mASW...) here, not the generic fetch key
     final url =
         '$baseUrl/report/daterange/$employeeId/$startDate/$endDate?code=$dateRangeKey';
-
-    debugPrint("Attempting to GET Date Range Report: $url");
 
     try {
       final response = await _apiClient.get(url, useAuth: true);

@@ -50,7 +50,6 @@ class AuthService {
     // Align with that format to reduce possible mismatch issues.
     final requestBody = {'email': email, 'Password': password};
 
-    print(" Login URL: ${loginUrl.replaceAll(RegExp(r'code=.*'), 'code=***')}");
     print(" Attempting login for email: $email");
 
     try {
@@ -172,8 +171,6 @@ class AuthService {
         '$baseUrl/employee/rejected-info/$employeeId?code=$fetchRejectedKey';
 
     // Debug print (Hide actual key for logs)
-    print(" Requesting URL: .../employee/rejected-info/$employeeId?code=***");
-
     try {
       // 3. Make Request with app token. Backend validates resubmission access.
       final response = await _apiClient.get(url, useAuth: true);
@@ -333,7 +330,7 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final token = data['resetTokenId'];
-        print(" Received Reset Token: $token");
+        print(" Reset token received.");
         return token.toString();
       } else {
         print(" OTP Request Failed: ${response.body}");

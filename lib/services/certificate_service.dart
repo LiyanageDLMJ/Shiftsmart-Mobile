@@ -79,8 +79,6 @@ class CertificateService {
   // --- FETCH CERTIFICATES ---
   Future<List<EmployeeCertificate>> fetchCertificates(int employeeId) async {
     final url = '$baseUrl/employee/documents1/$employeeId?code=$fetchKey';
-    debugPrint(" CertificateService: Fetching certificates from $url");
-
     try {
       final response = await _apiClient.get(url, useAuth: true);
       debugPrint(" CertificateService Status: ${response.statusCode}");

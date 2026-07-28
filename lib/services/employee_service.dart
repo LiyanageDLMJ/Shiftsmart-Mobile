@@ -40,7 +40,6 @@ class EmployeeService {
   Future<List<Employee>> fetchAllEmployees(
       {bool includeAdminsAndManagers = false}) async {
     final url = '$baseUrl/employee/all?code=$fetchEmpKey';
-    debugPrint(" EmployeeService: Fetching all employees from $url");
     try {
       final response =
           await _apiClient.get(url, useAuth: true, showDialog: false);
@@ -106,8 +105,6 @@ class EmployeeService {
   // --- 3. Bank Lookup ---
   Future<Map<String, dynamic>> lookupBank(String bsb) async {
     final String url = '$baseUrl/utility/bank-lookup/$bsb?code=$bankLookupKey';
-    debugPrint(" Calling Bank Lookup: $url");
-
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? token = prefs.getString('appToken');
@@ -147,8 +144,6 @@ class EmployeeService {
   Future<List<EmployeeCertificate>> fetchEmployeeDocuments(int empId) async {
     // Official Endpoint: /api/employee/documents/{employeeId}?code=CERTIFICATE_GET_KEY
     final url = '$baseUrl/employee/documents/$empId?code=$fetchDocsKey';
-    debugPrint(" Fetching Documents from: $url");
-
     try {
       final response = await _apiClient.get(url, useAuth: true);
 
@@ -271,8 +266,6 @@ class EmployeeService {
     required String certificateType,
     int? documentId,
   }) async {
-    debugPrint(" Uploading Document to: $url");
-
     try {
       final request = http.MultipartRequest(method, Uri.parse(url));
 

@@ -59,9 +59,6 @@ class ShiftService {
       int employeeId) async {
     final String url =
         '$baseUrl/shift/employee/$employeeId?code=$shiftGetByEmployeeKey';
-    debugPrint(
-        " ShiftService: Fetching shifts for employee $employeeId from $url");
-
     try {
       final response =
           await _apiClient.get(url, useAuth: true, showDialog: false);
@@ -407,7 +404,6 @@ class ShiftService {
     final deleteUrl = '$baseUrl/shift/delete/$id?code=$shiftDeleteKey';
 
     try {
-      debugPrint(' Deleting shift $id  $deleteUrl');
       final response = await _apiClient.delete(deleteUrl, useAuth: true);
       debugPrint(' Delete response: ${response.statusCode} - ${response.body}');
 

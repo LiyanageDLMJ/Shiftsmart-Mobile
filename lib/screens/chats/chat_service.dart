@@ -50,8 +50,6 @@ class ChatService {
     final url =
         '$messageBaseUrl/chat/search?query=$encodedQuery&code=$searchEmpKey';
 
-    debugPrint(" ChatService: Searching employees at $url");
-
     try {
       final response = await _apiClient.get(url, useAuth: true);
       debugPrint(" ChatService Search Status: ${response.statusCode}");
@@ -132,8 +130,6 @@ class ChatService {
   Future<List<Message>> fetchMessages(int chatParticipantId) async {
     final url =
         '$messageBaseUrl/chat/messages/$chatParticipantId?code=$fetchMsgKey';
-    debugPrint(" ChatService: Fetching messages from $url");
-
     try {
       final response = await _apiClient.get(url, useAuth: true);
       debugPrint(" ChatService: Message fetch status: ${response.statusCode}");
@@ -179,8 +175,6 @@ class ChatService {
       'ReceiverId': receiverId,
       'Message': text,
     };
-
-    debugPrint(" Sending Message to $url");
 
     try {
       final response = await _apiClient.post(url, body: body, useAuth: true);

@@ -37,7 +37,6 @@ class SiteService {
     final String url = '$baseUrl/site/create?code=$siteCreateKey';
 
     try {
-      debugPrint("POST Request to: $url");
       debugPrint("Body: $siteData");
 
       final response = await _apiClient.post(
@@ -114,8 +113,6 @@ class SiteService {
   // --- FETCH ALL SITES (Restricted to Managers) ---
   Future<List<Site>> fetchAllSites() async {
     final url = '$baseUrl/site/all?code=$siteGetAllKey';
-    debugPrint(" SiteService: Fetching all sites from $url");
-
     try {
       final response =
           await _apiClient.get(url, useAuth: true, showDialog: false);
@@ -180,8 +177,6 @@ class SiteService {
     // 2. Use the endpoint "/active/locations" (matches Web Portal)
     final url =
         '$attendanceBaseUrl/site/$siteId/active/locations?code=$activeLocationsBySiteKey';
-
-    debugPrint(" Fetching Active Locations: $url");
 
     try {
       final response = await _apiClient.get(url, useAuth: true);

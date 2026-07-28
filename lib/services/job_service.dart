@@ -50,7 +50,6 @@ class JobService {
   // --- FETCH ALL JOBS ---
   Future<List<Job>> fetchAllJobs() async {
     final geturl = '$baseUrl/job/list?code=$jobGetAllKey';
-    debugPrint("Fetching Jobs from: $geturl");
     try {
       // Re-enabling useAuth: true as per approved plan
       final response =
@@ -269,14 +268,14 @@ class JobService {
         lastError = responseBody.isNotEmpty
             ? responseBody
             : 'Status code: ${response.statusCode}';
-        debugPrint('Failed to update job with image at $url: $lastError');
+        debugPrint('Failed to update job with image: $lastError');
 
         if (response.statusCode != 404 && response.statusCode != 405) {
           break;
         }
       } catch (e) {
         lastError = e.toString();
-        debugPrint('Error updating job with image at $url: $e');
+        debugPrint('Error updating job with image: $e');
       }
     }
 
@@ -348,4 +347,3 @@ class JobService {
     }
   }
 }
-

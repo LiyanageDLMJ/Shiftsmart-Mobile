@@ -26,7 +26,6 @@ class OnboardingService {
     }
 
     try {
-      print(" Fetching Invitation: $url");
       final response = await _apiClient.get(url, useAuth: false);
 
       print(" Fetch Status: ${response.statusCode}");
@@ -73,7 +72,6 @@ class OnboardingService {
       }
     }
 
-    print(" Submitting Multipart Request to: $url");
     print(
         " Mode: ${isResubmission ? 'RESUBMISSION (Partial)' : 'NEW ONBOARDING (Full)'}");
 
