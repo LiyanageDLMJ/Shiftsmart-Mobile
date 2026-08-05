@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:mime/mime.dart';
 import 'package:shiftsmart/models/employee.dart';
 import 'package:shiftsmart/models/empcert_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -31,6 +30,14 @@ class EmployeeService {
   final String certificateUpdateKey =
       dotenv.env['CERTIFICATE_UPDATE_KEY'] ?? '';
   final String certificateGetKey = dotenv.env['CERTIFICATE_GET_KEY'] ?? '';
+  final String documentDownloadKey =
+      dotenv.env['EMPLOYEE_DOCUMENT_DOWNLOAD_KEY'] ??
+          dotenv.env['DOCUMENT_DOWNLOAD_KEY'] ??
+          '';
+  final String profilePictureDownloadKey =
+      dotenv.env['EMPLOYEE_PROFILE_PICTURE_DOWNLOAD_KEY'] ??
+          dotenv.env['PROFILE_PICTURE_DOWNLOAD_KEY'] ??
+          '';
 
   EmployeeService() {
     if (baseUrl.isEmpty) debugPrint(" EmployeeService: BASE_URL is missing");
@@ -51,15 +58,21 @@ class EmployeeService {
         final List<dynamic> jsonData = jsonDecode(response.body);
         debugPrint(" EmployeeService: Found ${jsonData.length} employees.");
 
+        final List<dynamic> employeeRows;
         if (!includeAdminsAndManagers) {
-          final filtered = jsonData.where((e) {
+          employeeRows = jsonData.where((e) {
             final role = (e['userRole'] ?? '').toString().toLowerCase();
             return role != 'manager' && role != 'admin';
           }).toList();
-          return filtered.map((e) => Employee.fromJson(e)).toList();
+        } else {
+          employeeRows = jsonData;
         }
 
-        return jsonData.map((e) => Employee.fromJson(e)).toList();
+        return Future.wait(
+          employeeRows
+              .whereType<Map<String, dynamic>>()
+              .map(_employeeFromJsonWithSignedProfile),
+        );
       } else {
         debugPrint("Failed to load employees: ${response.statusCode}");
         return [];
@@ -100,6 +113,33 @@ class EmployeeService {
     return [firstName, middleName.isNotEmpty ? middleName : lastName]
         .where((part) => part.isNotEmpty)
         .join(' ');
+  }
+
+  Future<Employee> _employeeFromJsonWithSignedProfile(
+    Map<String, dynamic> json,
+  ) async {
+    final employee = Employee.fromJson(json);
+    final signedUrl = await _signedProfilePictureUrl(
+      employee.employeeId,
+      employee.profilePicture,
+    );
+    return signedUrl == null
+        ? employee
+        : employee.copyWith(profilePicture: signedUrl);
+  }
+
+  Future<String?> _signedProfilePictureUrl(
+    int employeeId,
+    String? currentValue,
+  ) async {
+    final value = currentValue?.trim() ?? '';
+    if (employeeId <= 0 || value.isEmpty || value.startsWith('data:image')) {
+      return null;
+    }
+
+    final signedUrl = await fetchProfilePictureDownloadUrl(employeeId);
+    if (signedUrl == null || signedUrl.isEmpty) return null;
+    return signedUrl;
   }
 
   // --- 3. Bank Lookup ---
@@ -200,6 +240,59 @@ class EmployeeService {
     }
   }
 
+  Future<String?> fetchDocumentDownloadUrl(int documentId) async {
+    if (documentId <= 0) return null;
+
+    var uri = Uri.parse('$baseUrl/employee/documents/$documentId/download');
+    if (documentDownloadKey.isNotEmpty) {
+      uri = uri.replace(queryParameters: {'code': documentDownloadKey});
+    }
+
+    try {
+      final response = await _apiClient.get(uri.toString(), useAuth: true);
+      if (response.statusCode != 200) {
+        debugPrint(
+            'Failed to fetch document download URL: ${response.statusCode}');
+        return null;
+      }
+
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return (data['url'] ?? data['Url'])?.toString();
+      }
+    } catch (e) {
+      debugPrint('Error fetching document download URL: $e');
+    }
+    return null;
+  }
+
+  Future<String?> fetchProfilePictureDownloadUrl(int employeeId) async {
+    if (employeeId <= 0) return null;
+
+    var uri =
+        Uri.parse('$baseUrl/employee/profile-picture/$employeeId/download');
+    if (profilePictureDownloadKey.isNotEmpty) {
+      uri = uri.replace(queryParameters: {'code': profilePictureDownloadKey});
+    }
+
+    try {
+      final response = await _apiClient.get(uri.toString(), useAuth: true);
+      if (response.statusCode != 200) {
+        debugPrint(
+            'Failed to fetch profile picture URL: ${response.statusCode}');
+        return null;
+      }
+
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return (data['url'] ?? data['Url'])?.toString();
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile picture URL: $e');
+    }
+    return null;
+  }
+
   // --- 5. Upload Certificate (Multipart) ---
   Future<String?> uploadCertificate({
     required File file,
@@ -267,6 +360,16 @@ class EmployeeService {
     int? documentId,
   }) async {
     try {
+      final validationError = ApiClient.validateUploadFiles(
+        files: [file],
+        maxFiles: 1,
+        maxFileBytes: 20 * ApiClient.mb,
+        maxRequestBytes: 50 * ApiClient.mb,
+        allowPdf: true,
+        fileLabel: 'Document',
+      );
+      if (validationError != null) return validationError;
+
       final request = http.MultipartRequest(method, Uri.parse(url));
 
       final token = await _apiClient.getAppToken();
@@ -289,7 +392,7 @@ class EmployeeService {
         request.fields['id'] = documentId.toString(); // Some endpoints use 'id'
       }
 
-      final mimeType = lookupMimeType(file.path) ?? 'application/octet-stream';
+      final mimeType = ApiClient.uploadMimeType(file, allowPdf: true)!;
       request.files.add(await http.MultipartFile.fromPath(
         'file',
         file.path,

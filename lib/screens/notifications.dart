@@ -10,6 +10,7 @@ import 'package:shiftsmart/services/super_admin_service.dart'; // Add this to ca
 import 'package:provider/provider.dart';
 import 'package:shiftsmart/providers/tenant_provider.dart';
 import 'package:shiftsmart/utils/date_time_parser.dart';
+import 'package:shiftsmart/widgets/emp_bottomnavbar.dart';
 import 'package:shiftsmart/widgets/organization_selector.dart';
 
 class Notifications extends StatefulWidget {
@@ -219,7 +220,31 @@ class _NotificationsState extends State<Notifications> {
               borderRadius: const BorderRadius.all(Radius.circular(12)),
             ),
             child: ListTile(
-              leading: const Icon(Icons.notifications, color: Colors.white),
+              onTap: () async {
+                if (isUnread) {
+                  await _notificationService.markAsRead([notif.id]);
+                  await loadNotifications();
+                }
+
+                if (!mounted) return;
+                final role = _userRole.toLowerCase();
+                if (notif.type.toLowerCase() == 'shift_assignment' &&
+                    !role.contains('admin') &&
+                    !role.contains('manager')) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EmpBottomnavbar(selectedIndex: 1),
+                    ),
+                  );
+                }
+              },
+              leading: Icon(
+                notif.type.toLowerCase() == 'shift_assignment'
+                    ? Icons.calendar_month
+                    : Icons.notifications,
+                color: Colors.white,
+              ),
               title: Text(
                 notif.subject,
                 style: TextStyle(

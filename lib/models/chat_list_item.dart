@@ -17,6 +17,19 @@ class ChatListItem {
     this.lastMessageTime,
   });
 
+  ChatListItem copyWith({
+    String? partnerPhoto,
+  }) {
+    return ChatListItem(
+      chatId: chatId,
+      partnerId: partnerId,
+      partnerName: partnerName,
+      partnerPhoto: partnerPhoto ?? this.partnerPhoto,
+      lastMessage: lastMessage,
+      lastMessageTime: lastMessageTime,
+    );
+  }
+
   factory ChatListItem.fromJson(Map<String, dynamic> json) {
     final lastTime = parseChatDateTime(
       json['lastMessageTime'] ??

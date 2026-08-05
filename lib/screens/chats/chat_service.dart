@@ -5,9 +5,11 @@ import 'package:shiftsmart/models/chat_list_item.dart';
 import 'package:shiftsmart/models/message.dart';
 import 'package:shiftsmart/models/search_employee.dart';
 import 'package:shiftsmart/services/api_client.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 
 class ChatService {
   final ApiClient _apiClient = ApiClient();
+  final EmployeeService _employeeService = EmployeeService();
 
   // Standard Base URL
   final String baseUrl = dotenv.env['BASE_URL']!;
@@ -34,7 +36,11 @@ class ChatService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((item) => ChatListItem.fromJson(item)).toList();
+        return Future.wait(
+          data
+              .whereType<Map<String, dynamic>>()
+              .map(_chatListItemFromJsonWithSignedPhoto),
+        );
       }
       debugPrint(" Chat List Error: ${response.statusCode}");
       return [];
@@ -67,13 +73,56 @@ class ChatService {
         }
 
         debugPrint(" ChatService: Found ${data.length} employees.");
-        return data.map((e) => SearchEmployee.fromJson(e)).toList();
+        return Future.wait(
+          data
+              .whereType<Map<String, dynamic>>()
+              .map(_searchEmployeeFromJsonWithSignedPhoto),
+        );
       }
       return [];
     } catch (e) {
       debugPrint(" Error searching employees: $e");
       return [];
     }
+  }
+
+  Future<ChatListItem> _chatListItemFromJsonWithSignedPhoto(
+    Map<String, dynamic> json,
+  ) async {
+    final item = ChatListItem.fromJson(json);
+    final signedUrl = await _signedProfilePictureUrl(
+      item.partnerId,
+      item.partnerPhoto,
+    );
+    return signedUrl == null ? item : item.copyWith(partnerPhoto: signedUrl);
+  }
+
+  Future<SearchEmployee> _searchEmployeeFromJsonWithSignedPhoto(
+    Map<String, dynamic> json,
+  ) async {
+    final employee = SearchEmployee.fromJson(json);
+    final signedUrl = await _signedProfilePictureUrl(
+      employee.employeeId,
+      employee.profilePicture,
+    );
+    return signedUrl == null
+        ? employee
+        : employee.copyWith(profilePicture: signedUrl);
+  }
+
+  Future<String?> _signedProfilePictureUrl(
+    int employeeId,
+    String? currentValue,
+  ) async {
+    final value = currentValue?.trim() ?? '';
+    if (employeeId <= 0 || value.isEmpty || value.startsWith('data:image')) {
+      return null;
+    }
+
+    final signedUrl =
+        await _employeeService.fetchProfilePictureDownloadUrl(employeeId);
+    if (signedUrl == null || signedUrl.isEmpty) return null;
+    return signedUrl;
   }
 
   Future<List<SearchEmployee>> fetchDefaultSearchEmployees() async {

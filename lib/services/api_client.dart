@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -10,6 +11,63 @@ import 'package:shiftsmart/widgets/premium_feature_gate.dart';
 class ApiClient {
   // Use FlutterSecureStorage (consistent with AuthService)
   final _storage = const FlutterSecureStorage();
+
+  static const int mb = 1024 * 1024;
+
+  static String? uploadMimeType(File file, {required bool allowPdf}) {
+    final extension = file.path.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'pdf':
+        return allowPdf ? 'application/pdf' : null;
+      default:
+        return null;
+    }
+  }
+
+  static String? validateUploadFiles({
+    required List<File> files,
+    required int maxFiles,
+    required int maxFileBytes,
+    required int maxRequestBytes,
+    required bool allowPdf,
+    required String fileLabel,
+  }) {
+    if (files.isEmpty) return 'Please select a file.';
+    if (files.length > maxFiles) {
+      return 'You can upload a maximum of $maxFiles file(s).';
+    }
+
+    var totalBytes = 0;
+    for (final file in files) {
+      if (!file.existsSync()) return 'Selected file cannot be found.';
+
+      final length = file.lengthSync();
+      if (length <= 0) return '$fileLabel cannot be empty.';
+      if (length > maxFileBytes) {
+        return '$fileLabel is too large. Please choose a smaller file.';
+      }
+
+      final mimeType = uploadMimeType(file, allowPdf: allowPdf);
+      if (mimeType == null) {
+        return allowPdf
+            ? 'Only PDF, JPEG, and PNG files are supported.'
+            : 'Only JPEG and PNG images are supported.';
+      }
+
+      totalBytes += length;
+    }
+
+    if (totalBytes > maxRequestBytes) {
+      return 'The selected files are too large. Please reduce the upload size.';
+    }
+
+    return null;
+  }
 
   // Helper to get the saved token
   Future<String?> getAppToken() async {
@@ -59,7 +117,7 @@ class ApiClient {
   void _handleForbidden(http.Response response, {bool showDialog = true}) {
     if (response.statusCode == 403) {
       debugPrint(" ApiClient: 403 Forbidden detected. showDialog: $showDialog");
-      
+
       final context = navigatorKey.currentContext;
       if (context != null) {
         // Record the blocked endpoint in TenantProvider so the bottom nav
@@ -72,12 +130,13 @@ class ApiClient {
           } catch (_) {}
         }
 
-        // Try to parse the feature name from response if possible, 
+        // Try to parse the feature name from response if possible,
         // otherwise default to 'This feature'.
         String featureName = 'This feature';
         try {
           final body = jsonDecode(response.body);
-          featureName = body['featureName'] ?? body['FeatureName'] ?? 'This feature';
+          featureName =
+              body['featureName'] ?? body['FeatureName'] ?? 'This feature';
         } catch (_) {}
 
         // Only show the dialog if we have a specific feature name from the backend.
@@ -95,7 +154,9 @@ class ApiClient {
 
   /// Performs a GET request
   Future<http.Response> get(String url,
-      {bool useAuth = false, bool handleForbidden = true, bool showDialog = true}) async {
+      {bool useAuth = false,
+      bool handleForbidden = true,
+      bool showDialog = true}) async {
     final headers = await _getHeaders(useAuth);
     final response = await http.get(
       Uri.parse(url),
@@ -109,7 +170,10 @@ class ApiClient {
 
   /// Performs a POST request
   Future<http.Response> post(String url,
-      {dynamic body, bool useAuth = false, bool handleForbidden = true, bool showDialog = true}) async {
+      {dynamic body,
+      bool useAuth = false,
+      bool handleForbidden = true,
+      bool showDialog = true}) async {
     final headers = await _getHeaders(useAuth);
     final response = await http.post(
       Uri.parse(url),
@@ -124,7 +188,10 @@ class ApiClient {
 
   /// Performs a PUT request
   Future<http.Response> put(String url,
-      {dynamic body, bool useAuth = false, bool handleForbidden = true, bool showDialog = true}) async {
+      {dynamic body,
+      bool useAuth = false,
+      bool handleForbidden = true,
+      bool showDialog = true}) async {
     final headers = await _getHeaders(useAuth);
     final response = await http.put(
       Uri.parse(url),
@@ -139,7 +206,9 @@ class ApiClient {
 
   /// Performs a DELETE request
   Future<http.Response> delete(String url,
-      {bool useAuth = false, bool handleForbidden = true, bool showDialog = true}) async {
+      {bool useAuth = false,
+      bool handleForbidden = true,
+      bool showDialog = true}) async {
     final headers = await _getHeaders(useAuth);
     final response = await http.delete(
       Uri.parse(url),
@@ -153,7 +222,10 @@ class ApiClient {
 
   /// Performs a PATCH request
   Future<http.Response> patch(String url,
-      {dynamic body, bool useAuth = false, bool handleForbidden = true, bool showDialog = true}) async {
+      {dynamic body,
+      bool useAuth = false,
+      bool handleForbidden = true,
+      bool showDialog = true}) async {
     final headers = await _getHeaders(useAuth);
     final response = await http.patch(
       Uri.parse(url),

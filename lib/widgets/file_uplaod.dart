@@ -17,7 +17,7 @@ class _FileUploadState extends State<FileUpload> {
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg'],
+      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
     );
 
     if (result != null && result.files.single.path != null) {
@@ -29,7 +29,9 @@ class _FileUploadState extends State<FileUpload> {
   }
 
   bool _isImage(String path) {
-    return path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png');
+    return path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png');
   }
 
   @override
@@ -46,18 +48,22 @@ class _FileUploadState extends State<FileUpload> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: const Icon(Icons.cloud_upload_outlined, color: Colors.black, size: 20),
+              child: const Icon(Icons.cloud_upload_outlined,
+                  color: Colors.black, size: 20),
             ),
             const SizedBox(width: 12),
             const Text(
               "Upload files",
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600),
             ),
           ],
         ),
         const SizedBox(height: 8),
         const Text(
-          "Supported: PDF, DOCX, JPG, PNG (max 50MB)",
+          "Supported: PDF, JPG, PNG",
           style: TextStyle(color: Colors.white60, fontSize: 14),
         ),
         const SizedBox(height: 24),
@@ -69,7 +75,8 @@ class _FileUploadState extends State<FileUpload> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2), width: 1.5),
             ),
             child: _selectedFile == null
                 ? _buildPlaceholder()
@@ -92,23 +99,29 @@ class _FileUploadState extends State<FileUpload> {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2), width: 1),
           ),
-          child: const Icon(Icons.cloud_upload_outlined, color: Colors.black, size: 28),
+          child: const Icon(Icons.cloud_upload_outlined,
+              color: Colors.black, size: 28),
         ),
         const SizedBox(height: 16),
-        const Text("Choose a file or drag & drop it here", style: TextStyle(color: Colors.black, fontSize: 16)),
+        const Text("Choose a file or drag & drop it here",
+            style: TextStyle(color: Colors.black, fontSize: 16)),
         const SizedBox(height: 8),
-        const Text("JPEG, PNG, PDF, DOC up to 50MB", style: TextStyle(color: Colors.black, fontSize: 12)),
+        const Text("JPEG, PNG, or PDF",
+            style: TextStyle(color: Colors.black, fontSize: 12)),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.3), width: 1.5),
+            border: Border.all(
+                color: Colors.black.withValues(alpha: 0.3), width: 1.5),
           ),
-          child: const Text("Browse File", style: TextStyle(color: Colors.black, fontSize: 14)),
+          child: const Text("Browse File",
+              style: TextStyle(color: Colors.black, fontSize: 14)),
         ),
       ],
     );
@@ -160,7 +173,9 @@ class _FileUploadState extends State<FileUpload> {
         child: Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(16)),
           child: const Icon(Icons.close, color: Colors.white, size: 18),
         ),
       ),

@@ -49,6 +49,36 @@ class Employee {
     this.nextOfKins = const [],
   });
 
+  Employee copyWith({
+    String? profilePicture,
+  }) {
+    return Employee(
+      employeeId: employeeId,
+      firstName: firstName,
+      middleName: middleName,
+      lastName: lastName,
+      gender: gender,
+      email: email,
+      mobileNumber: mobileNumber,
+      street: street,
+      city: city,
+      state: state,
+      postalCode: postalCode,
+      country: country,
+      dateOfBirth: dateOfBirth,
+      employmentStatus: employmentStatus,
+      employmentType: employmentType,
+      jobRole: jobRole,
+      userRole: userRole,
+      profilePicture: profilePicture ?? this.profilePicture,
+      bankAccountName: bankAccountName,
+      bankAccountNumber: bankAccountNumber,
+      bankBSB: bankBSB,
+      bankName: bankName,
+      nextOfKins: nextOfKins,
+    );
+  }
+
   factory Employee.fromJson(Map<String, dynamic> json) {
     // Helper to safely get value regardless of casing
     T? getValue<T>(String key1, String key2) {

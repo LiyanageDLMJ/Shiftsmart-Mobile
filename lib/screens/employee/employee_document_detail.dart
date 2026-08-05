@@ -4,9 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:shiftsmart/models/empcert_model.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 import 'package:shiftsmart/services/onboarding_service.dart';
+import 'media_viewer.dart';
 
 class EmployeeDocumentDetail extends StatefulWidget {
   final EmployeeCertificate document;
@@ -60,7 +61,8 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
 
       if (error == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document update submitted successfully.')),
+          const SnackBar(
+              content: Text('Document update submitted successfully.')),
         );
         Navigator.of(context).pop(true);
       } else {
@@ -72,23 +74,34 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
   }
 
   Future<void> _openDocument() async {
-    final url = widget.document.documentUrl;
-    if (url.isEmpty) {
+    String? url;
+    final documentId = widget.document.documentId ?? 0;
+    if (documentId > 0) {
+      url = await EmployeeService().fetchDocumentDownloadUrl(documentId);
+    }
+
+    final documentUrl = url ?? widget.document.documentUrl;
+    if (documentUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Document URL is missing.')),
+        const SnackBar(content: Text('Document is not available.')),
       );
       return;
     }
 
-    final uri = Uri.parse(url);
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot open document URL.')),
-        );
-      }
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MediaViewer(
+            url: documentUrl,
+            title: widget.document.fileName.isNotEmpty
+                ? widget.document.fileName
+                : widget.document.documentType,
+            isPdf: documentUrl.split('?').first.toLowerCase().endsWith('.pdf'),
+          ),
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error opening document: $e')),
@@ -137,7 +150,7 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
             children: [
               _buildDetailCard(),
               const SizedBox(height: 24),
-              if (widget.document.status.toLowerCase() != 'approved' && 
+              if (widget.document.status.toLowerCase() != 'approved' &&
                   widget.document.status.toLowerCase() != 'verified')
                 _buildActionSection(),
             ],
@@ -201,10 +214,11 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
           const Divider(color: Colors.white10, height: 1),
           const SizedBox(height: 20),
           _buildInfoRow('Type', widget.document.documentType),
-          _buildInfoRow('Status', widget.document.status, 
+          _buildInfoRow('Status', widget.document.status,
               valueColor: _getStatusColor(widget.document.status)),
           _buildInfoRow('Uploaded', _formattedUploadedAt),
-          if (widget.document.remarks != null && widget.document.remarks!.isNotEmpty)
+          if (widget.document.remarks != null &&
+              widget.document.remarks!.isNotEmpty)
             _buildInfoRow('Remarks', widget.document.remarks!),
           const SizedBox(height: 24),
           SizedBox(
@@ -256,25 +270,30 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white24, style: BorderStyle.solid),
+                border:
+                    Border.all(color: Colors.white24, style: BorderStyle.solid),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.cloud_upload_outlined, color: Colors.white70),
+                  const Icon(Icons.cloud_upload_outlined,
+                      color: Colors.white70),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       _selectedFileName ?? 'Select new file...',
                       style: TextStyle(
-                        color: _selectedFileName != null ? Colors.white : Colors.white38,
+                        color: _selectedFileName != null
+                            ? Colors.white
+                            : Colors.white38,
                         fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (_selectedFileName != null)
-                    const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+                    const Icon(Icons.check_circle,
+                        color: Colors.greenAccent, size: 20),
                 ],
               ),
             ),
@@ -304,7 +323,8 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
                     )
                   : const Text(
                       'SUBMIT UPDATE',
-                      style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, letterSpacing: 1),
                     ),
             ),
           ),
@@ -324,10 +344,9 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
             child: Text(
               '$label',
               style: const TextStyle(
-                color: Colors.white38, 
-                fontSize: 13,
-                fontWeight: FontWeight.w500
-              ),
+                  color: Colors.white38,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500),
             ),
           ),
           const SizedBox(width: 8),
@@ -335,10 +354,9 @@ class _EmployeeDocumentDetailState extends State<EmployeeDocumentDetail> {
             child: Text(
               value,
               style: TextStyle(
-                color: valueColor ?? Colors.white70, 
-                fontSize: 14,
-                fontWeight: FontWeight.w600
-              ),
+                  color: valueColor ?? Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600),
             ),
           ),
         ],

@@ -71,12 +71,22 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     body =
         "Your leave request is ${message.data['status'] ?? message.data['Status']}";
   } else if (message.data.containsKey('type')) {
-    title = _titleForMessageType(message.data['type']);
+  final type = message.data['type']?.toString();
+  title = _titleForMessageType(type);
+
+  if (type == 'shift_assignment') {
+    body = message.data['body'] ??
+        message.data['message'] ??
+        message.data['details'] ??
+        message.data['shiftDetails'] ??
+        'You have been assigned a new shift.';
+  } else {
     body = message.data['body'] ??
         message.data['message'] ??
         message.data['details'] ??
         message.data['shiftDetails'];
   }
+}
 
   // Show the Notification
   if (body != null) {

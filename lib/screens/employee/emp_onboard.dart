@@ -759,9 +759,8 @@ class _EmponboardState extends State<Emponboard> {
         _abnCtrl.text = (tax['abn'] ?? tax['Abn'] ?? '').toString();
       }
 
-      _jobRole =
-          (profile['jobRole'] ?? profile['JobRole'] ?? 'Standard Role')
-              .toString();
+      _jobRole = (profile['jobRole'] ?? profile['JobRole'] ?? 'Standard Role')
+          .toString();
 
       final noksRaw = profile['nextOfKins'] ?? profile['NextOfKins'] ?? [];
       final noks = noksRaw is List ? noksRaw : <dynamic>[];
@@ -950,7 +949,7 @@ class _EmponboardState extends State<Emponboard> {
                 FilePickerResult? result = await FilePicker.pickFiles(
                   type: FileType.custom,
                   allowMultiple: true,
-                  allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
+                  allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                 );
                 final files = result?.files
                         .where((file) => file.path != null)
@@ -1112,9 +1111,8 @@ class _EmponboardState extends State<Emponboard> {
   }
 
   void _showSuccessDialog() {
-    final title = _isResubmission
-        ? "Review in Progress"
-        : "Submission Successful!";
+    final title =
+        _isResubmission ? "Review in Progress" : "Submission Successful!";
     final message = _isResubmission
         ? "Your corrected details have been resubmitted for review."
         : "Your details have been submitted for review. You can now login.";
@@ -1238,7 +1236,8 @@ class _EmponboardState extends State<Emponboard> {
         }
       }
       if (_rejectedKeys.contains("NextOfKin")) {
-        final firstNok = _nokList.isNotEmpty ? _nokList.first : <String, dynamic>{};
+        final firstNok =
+            _nokList.isNotEmpty ? _nokList.first : <String, dynamic>{};
         final nextOfKinId =
             int.tryParse((firstNok["nextOfKinId"] ?? "").toString()) ?? 0;
         if (nextOfKinId <= 0) {
@@ -1312,7 +1311,9 @@ class _EmponboardState extends State<Emponboard> {
             _buildFullPhoneNumber(_phoneCtrl, _selectedProfileCountry),
         "Gender": finalGender,
         "DateOfBirth": _dobCtrl.text.isNotEmpty
-            ? (_dobCtrl.text.contains("T") ? _dobCtrl.text : "${_dobCtrl.text}T00:00:00")
+            ? (_dobCtrl.text.contains("T")
+                ? _dobCtrl.text
+                : "${_dobCtrl.text}T00:00:00")
             : "1990-01-01T00:00:00",
         "Street": street,
         "City": _cityCtrl.text,
@@ -1589,13 +1590,17 @@ class _EmponboardState extends State<Emponboard> {
         ),
       const SizedBox(height: 20),
       if (_shouldShow("FullName")) ...[
-        _buildTextField("First Name", _firstNameCtrl, readOnly: !_isEditable("FullName")),
-        _buildTextField("Middle Name", _midNameCtrl, readOnly: !_isEditable("FullName")),
-        _buildTextField("Last Name", _lastNameCtrl, readOnly: !_isEditable("FullName")),
+        _buildTextField("First Name", _firstNameCtrl,
+            readOnly: !_isEditable("FullName")),
+        _buildTextField("Middle Name", _midNameCtrl,
+            readOnly: !_isEditable("FullName")),
+        _buildTextField("Last Name", _lastNameCtrl,
+            readOnly: !_isEditable("FullName")),
       ],
       if (_shouldShow("Gender"))
         _buildDropdown("Gender", _genderOptions, _gender,
-            (v) => setState(() => _gender = v), enabled: _isEditable("Gender")),
+            (v) => setState(() => _gender = v),
+            enabled: _isEditable("Gender")),
       if (_shouldShow("MobileNumber"))
         _buildPhoneNumberField(
           label: "Mobile Number",
@@ -1606,7 +1611,8 @@ class _EmponboardState extends State<Emponboard> {
           readOnly: !_isEditable("MobileNumber"),
         ),
       if (_shouldShow("DateOfBirth"))
-        _buildDatePicker("Date of Birth", _dobCtrl, validator: _validateAge, enabled: _isEditable("DateOfBirth")),
+        _buildDatePicker("Date of Birth", _dobCtrl,
+            validator: _validateAge, enabled: _isEditable("DateOfBirth")),
       if (_shouldShow("Address")) ...[
         if (_isEditable("Address"))
           _buildCountryAutocomplete()
@@ -1621,9 +1627,11 @@ class _EmponboardState extends State<Emponboard> {
             enabled: _isEditable("Address"),
           )
         else
-          _buildTextField("State", _stateCtrl, readOnly: !_isEditable("Address")),
+          _buildTextField("State", _stateCtrl,
+              readOnly: !_isEditable("Address")),
         _buildTextField("City", _cityCtrl, readOnly: !_isEditable("Address")),
-        _buildTextField("Street", _streetCtrl, readOnly: !_isEditable("Address")),
+        _buildTextField("Street", _streetCtrl,
+            readOnly: !_isEditable("Address")),
         _buildTextField("Postcode", _zipCtrl,
             readOnly: !_isEditable("Address"),
             keyboardType: TextInputType.number,
@@ -1638,7 +1646,8 @@ class _EmponboardState extends State<Emponboard> {
       _buildReadOnlyField("Job Role", _jobRole),
       _buildReadOnlyField("Employment Type", _empType),
       if (_shouldShow("TaxInfo")) ...[
-        if (_empType.contains("Contractor")) _buildTextField("ABN", _abnCtrl, readOnly: !_isEditable("TaxInfo")),
+        if (_empType.contains("Contractor"))
+          _buildTextField("ABN", _abnCtrl, readOnly: !_isEditable("TaxInfo")),
         if (_empType.contains("Employee"))
           _buildTextField("TFN", _tfnCtrl,
               readOnly: !_isEditable("TaxInfo"),
@@ -1658,7 +1667,8 @@ class _EmponboardState extends State<Emponboard> {
                 fontWeight: FontWeight.bold,
                 fontSize: 18)),
         const SizedBox(height: 10),
-        _buildTextField("Account Name", _accNameCtrl, readOnly: !_isEditable("Bank")),
+        _buildTextField("Account Name", _accNameCtrl,
+            readOnly: !_isEditable("Bank")),
         _buildTextField("BSB", _bsbCtrl,
             readOnly: !_isEditable("Bank"),
             focusNode: _bsbFocusNode,
@@ -1694,7 +1704,8 @@ class _EmponboardState extends State<Emponboard> {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: _validateAccountNumber),
         _buildTextField("Bank Name", _bankNameCtrl,
-            readOnly: !_isEditable("Bank") || (_isBankNameReadOnly && _bankNameCtrl.text.isNotEmpty)),
+            readOnly: !_isEditable("Bank") ||
+                (_isBankNameReadOnly && _bankNameCtrl.text.isNotEmpty)),
       ],
       if (!_isResubmission) ...[
         const SizedBox(height: 20),
@@ -1742,13 +1753,15 @@ class _EmponboardState extends State<Emponboard> {
                 fontWeight: FontWeight.bold,
                 fontSize: 18)),
         const SizedBox(height: 10),
-        _buildTextField("Full Name", _nokNameCtrl, readOnly: !canEditNok, validator: (v) {
+        _buildTextField("Full Name", _nokNameCtrl, readOnly: !canEditNok,
+            validator: (v) {
           if (!_shouldValidateNokFields) return null;
           return (v == null || v.trim().isEmpty)
               ? "Full Name is required"
               : null;
         }),
-        _buildTextField("Relationship", _nokRelCtrl, readOnly: !canEditNok, validator: (v) {
+        _buildTextField("Relationship", _nokRelCtrl, readOnly: !canEditNok,
+            validator: (v) {
           if (!_shouldValidateNokFields) return null;
           return (v == null || v.trim().isEmpty)
               ? "Relationship is required"
@@ -1773,78 +1786,80 @@ class _EmponboardState extends State<Emponboard> {
           if (!_shouldValidateNokFields) return null;
           return _validateEmail(v);
         }),
-        _buildTextField("Address", _nokAddressCtrl, readOnly: !canEditNok, validator: (v) {
+        _buildTextField("Address", _nokAddressCtrl, readOnly: !canEditNok,
+            validator: (v) {
           if (!_shouldValidateNokFields) return null;
           return (v == null || v.trim().isEmpty) ? "Address is required" : null;
         }),
         if (canEditNok)
-        Align(
-          alignment: Alignment.centerRight,
-          child: GradientButton(
-              text: _isResubmission ? "Update NoK" : "Add NoK",
-              onPressed: () {
-                setState(() => _forceNokFieldValidation = true);
-                if (!(_formKey.currentState?.validate() ?? false)) return;
+          Align(
+            alignment: Alignment.centerRight,
+            child: GradientButton(
+                text: _isResubmission ? "Update NoK" : "Add NoK",
+                onPressed: () {
+                  setState(() => _forceNokFieldValidation = true);
+                  if (!(_formKey.currentState?.validate() ?? false)) return;
 
-                final name = _nokNameCtrl.text.trim();
-                final rel = _nokRelCtrl.text.trim();
-                final mobile =
-                    _buildFullPhoneNumber(_nokPhoneCtrl, _selectedNokCountry);
-                final email = _nokEmailCtrl.text.trim();
-                final address = _nokAddressCtrl.text.trim();
+                  final name = _nokNameCtrl.text.trim();
+                  final rel = _nokRelCtrl.text.trim();
+                  final mobile =
+                      _buildFullPhoneNumber(_nokPhoneCtrl, _selectedNokCountry);
+                  final email = _nokEmailCtrl.text.trim();
+                  final address = _nokAddressCtrl.text.trim();
 
-                if (name.isEmpty ||
-                    rel.isEmpty ||
-                    mobile.isEmpty ||
-                    email.isEmpty ||
-                    address.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Please fill in all Next of Kin fields."),
-                      backgroundColor: Colors.redAccent));
-                  return;
-                }
-
-                if (_validatePhoneNumber(_nokPhoneCtrl.text, label: 'Mobile') !=
-                    null) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Please enter a valid mobile number."),
-                      backgroundColor: Colors.redAccent));
-                  return;
-                }
-
-                if (_validateEmail(email) != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Please enter a valid email address."),
-                      backgroundColor: Colors.redAccent));
-                  return;
-                }
-
-                setState(() {
-                  final updatedNok = <String, dynamic>{
-                    "fullName": name,
-                    "relationship": rel,
-                    "mobileNumber": mobile,
-                    "email": email,
-                    "address": address,
-                  };
-                  if (_isResubmission && _nokList.isNotEmpty) {
-                    updatedNok["nextOfKinId"] = _nokList.first["nextOfKinId"];
+                  if (name.isEmpty ||
+                      rel.isEmpty ||
+                      mobile.isEmpty ||
+                      email.isEmpty ||
+                      address.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Please fill in all Next of Kin fields."),
+                        backgroundColor: Colors.redAccent));
+                    return;
                   }
-                  if (_isResubmission && _nokList.isNotEmpty) {
-                    _nokList[0] = updatedNok;
-                  } else {
-                    _nokList.add(updatedNok);
+
+                  if (_validatePhoneNumber(_nokPhoneCtrl.text,
+                          label: 'Mobile') !=
+                      null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Please enter a valid mobile number."),
+                        backgroundColor: Colors.redAccent));
+                    return;
                   }
-                  _nokNameCtrl.clear();
-                  _nokRelCtrl.clear();
-                  _nokPhoneCtrl.clear();
-                  _selectedNokCountry = _dialCountries.first;
-                  _nokEmailCtrl.clear();
-                  _nokAddressCtrl.clear();
-                  _forceNokFieldValidation = false;
-                });
-              }),
-        ),
+
+                  if (_validateEmail(email) != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Please enter a valid email address."),
+                        backgroundColor: Colors.redAccent));
+                    return;
+                  }
+
+                  setState(() {
+                    final updatedNok = <String, dynamic>{
+                      "fullName": name,
+                      "relationship": rel,
+                      "mobileNumber": mobile,
+                      "email": email,
+                      "address": address,
+                    };
+                    if (_isResubmission && _nokList.isNotEmpty) {
+                      updatedNok["nextOfKinId"] = _nokList.first["nextOfKinId"];
+                    }
+                    if (_isResubmission && _nokList.isNotEmpty) {
+                      _nokList[0] = updatedNok;
+                    } else {
+                      _nokList.add(updatedNok);
+                    }
+                    _nokNameCtrl.clear();
+                    _nokRelCtrl.clear();
+                    _nokPhoneCtrl.clear();
+                    _selectedNokCountry = _dialCountries.first;
+                    _nokEmailCtrl.clear();
+                    _nokAddressCtrl.clear();
+                    _forceNokFieldValidation = false;
+                  });
+                }),
+          ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -1854,7 +1869,9 @@ class _EmponboardState extends State<Emponboard> {
               backgroundColor: Colors.blueAccent,
               deleteIcon:
                   const Icon(Icons.close, size: 18, color: Colors.white),
-              onDeleted: canEditNok ? () => setState(() => _nokList.remove(nok)) : null,
+              onDeleted: canEditNok
+                  ? () => setState(() => _nokList.remove(nok))
+                  : null,
             );
           }).toList(),
         ),
@@ -2205,7 +2222,9 @@ class _EmponboardState extends State<Emponboard> {
                       hintText: "Phone number",
                       hintStyle: const TextStyle(color: Colors.white54),
                       filled: true,
-                      fillColor: readOnly ? Colors.white10 : Colors.white.withValues(alpha: 0.1),
+                      fillColor: readOnly
+                          ? Colors.white10
+                          : Colors.white.withValues(alpha: 0.1),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       enabledBorder: OutlineInputBorder(
@@ -2548,13 +2567,13 @@ class _EmponboardState extends State<Emponboard> {
         isExpanded: true,
         icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
         onChanged: enabled ? onChanged : null,
-        validator: enabled ? (v) => v == null ? "$label is required" : null : null,
+        validator:
+            enabled ? (v) => v == null ? "$label is required" : null : null,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           filled: true,
-          fillColor: enabled
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.white10,
+          fillColor:
+              enabled ? Colors.white.withValues(alpha: 0.1) : Colors.white10,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           enabledBorder: OutlineInputBorder(
@@ -2600,9 +2619,8 @@ class _EmponboardState extends State<Emponboard> {
           labelText: label,
           labelStyle: const TextStyle(color: Colors.white70),
           filled: true,
-          fillColor: enabled
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.white10,
+          fillColor:
+              enabled ? Colors.white.withValues(alpha: 0.1) : Colors.white10,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           suffixIcon: const Icon(Icons.calendar_today, color: Colors.white70),
           errorStyle: const TextStyle(color: Colors.redAccent),

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http_parser/http_parser.dart';
-import 'package:mime/mime.dart';
 import 'api_client.dart';
 
 class OnboardingService {
@@ -76,6 +75,47 @@ class OnboardingService {
         " Mode: ${isResubmission ? 'RESUBMISSION (Partial)' : 'NEW ONBOARDING (Full)'}");
 
     try {
+      final allDocuments =
+          uploadedCertificates.values.expand((files) => files).toList();
+      final profileValidation = profilePicture.existsSync()
+          ? ApiClient.validateUploadFiles(
+              files: [profilePicture],
+              maxFiles: 1,
+              maxFileBytes: 5 * ApiClient.mb,
+              maxRequestBytes: 50 * ApiClient.mb,
+              allowPdf: false,
+              fileLabel: 'Profile image',
+            )
+          : null;
+      if (profileValidation != null) {
+        return http.Response(profileValidation, 400);
+      }
+
+      if (allDocuments.isNotEmpty) {
+        final documentValidation = ApiClient.validateUploadFiles(
+          files: allDocuments,
+          maxFiles: 10,
+          maxFileBytes: 20 * ApiClient.mb,
+          maxRequestBytes: 50 * ApiClient.mb,
+          allowPdf: true,
+          fileLabel: 'Document',
+        );
+        if (documentValidation != null) {
+          return http.Response(documentValidation, 400);
+        }
+
+        final totalBytes = [
+          if (profilePicture.existsSync()) profilePicture,
+          ...allDocuments,
+        ].fold<int>(0, (sum, file) => sum + file.lengthSync());
+        if (totalBytes > 50 * ApiClient.mb) {
+          return http.Response(
+            'The selected files are too large. Maximum request size is 50 MB.',
+            413,
+          );
+        }
+      }
+
       var request = http.MultipartRequest('POST', Uri.parse(url));
 
       // 2. AUTH TOKEN
@@ -112,7 +152,10 @@ class OnboardingService {
 
       // 4. ADD PROFILE PICTURE
       if (profilePicture.existsSync()) {
-        final mimeType = lookupMimeType(profilePicture.path) ?? 'image/jpeg';
+        final mimeType = ApiClient.uploadMimeType(
+          profilePicture,
+          allowPdf: false,
+        )!;
         request.files.add(await http.MultipartFile.fromPath(
           'profilePicture',
           profilePicture.path,
@@ -124,7 +167,7 @@ class OnboardingService {
       for (var entry in uploadedCertificates.entries) {
         for (final file in entry.value) {
           if (file.existsSync()) {
-            final mimeType = lookupMimeType(file.path) ?? 'application/pdf';
+            final mimeType = ApiClient.uploadMimeType(file, allowPdf: true)!;
 
             print(" Attaching File: ${entry.key}");
 
@@ -196,6 +239,16 @@ class OnboardingService {
     try {
       final request = http.MultipartRequest('POST', Uri.parse(url));
 
+      final validationError = ApiClient.validateUploadFiles(
+        files: [file],
+        maxFiles: 1,
+        maxFileBytes: 20 * ApiClient.mb,
+        maxRequestBytes: 50 * ApiClient.mb,
+        allowPdf: true,
+        fileLabel: 'Document',
+      );
+      if (validationError != null) return validationError;
+
       final token = await _apiClient.getAppToken();
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
@@ -204,7 +257,7 @@ class OnboardingService {
       request.fields['DocumentId'] = documentId.toString();
       request.fields['DocumentType'] = documentType;
 
-      final mimeType = lookupMimeType(file.path) ?? 'application/octet-stream';
+      final mimeType = ApiClient.uploadMimeType(file, allowPdf: true)!;
       request.files.add(await http.MultipartFile.fromPath(
         'document_$documentId',
         file.path,

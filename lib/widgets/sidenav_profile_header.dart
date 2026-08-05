@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 
-class SidenavProfileHeader extends StatelessWidget {
+class SidenavProfileHeader extends StatefulWidget {
   final Map<String, dynamic> userProfile;
   final VoidCallback onTap;
 
@@ -13,15 +14,28 @@ class SidenavProfileHeader extends StatelessWidget {
   });
 
   @override
+  State<SidenavProfileHeader> createState() => _SidenavProfileHeaderState();
+}
+
+class _SidenavProfileHeaderState extends State<SidenavProfileHeader> {
+  String? _resolvedImageUrl;
+  String? _lastImageValue;
+  int? _lastEmployeeId;
+
+  @override
   Widget build(BuildContext context) {
+    final imageValue = widget.userProfile['profilePicture'] ??
+        widget.userProfile['ProfilePicture'];
+    final employeeId = _employeeIdFrom(widget.userProfile);
+    _resolveProfileImageUrl(employeeId, imageValue);
     final imageProvider = _profileImageProvider(
-      userProfile['profilePicture'] ?? userProfile['ProfilePicture'],
+      _resolvedImageUrl ?? imageValue,
     );
-    final fullName = _fullName(userProfile);
-    final role = _roleText(userProfile);
+    final fullName = _fullName(widget.userProfile);
+    final role = _roleText(widget.userProfile);
 
     return InkWell(
-      onTap: onTap,
+      onTap: widget.onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -85,6 +99,36 @@ class SidenavProfileHeader extends StatelessWidget {
     }
 
     return NetworkImage(image);
+  }
+
+  int? _employeeIdFrom(Map<String, dynamic> profile) {
+    final raw = profile['employeeId'] ??
+        profile['EmployeeId'] ??
+        profile['userId'] ??
+        profile['UserId'];
+    if (raw is int) return raw;
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  void _resolveProfileImageUrl(int? employeeId, dynamic imageValue) {
+    final image = imageValue?.toString().trim() ?? '';
+    if (employeeId == null ||
+        employeeId <= 0 ||
+        image.isEmpty ||
+        image.startsWith('data:image')) {
+      return;
+    }
+
+    if (_lastEmployeeId == employeeId && _lastImageValue == image) return;
+    _lastEmployeeId = employeeId;
+    _lastImageValue = image;
+    _resolvedImageUrl = null;
+
+    EmployeeService().fetchProfilePictureDownloadUrl(employeeId).then((url) {
+      if (!mounted || url == null || url.isEmpty) return;
+      if (_lastEmployeeId != employeeId || _lastImageValue != image) return;
+      setState(() => _resolvedImageUrl = url);
+    });
   }
 
   String _fullName(Map<String, dynamic> profile) {

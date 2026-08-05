@@ -12,6 +12,7 @@ import 'package:shiftsmart/screens/employee/emp_onboard.dart';
 import 'package:shiftsmart/screens/forgot_password.dart';
 import 'package:shiftsmart/services/auth_service.dart';
 import 'package:shiftsmart/services/api_client.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 import 'package:shiftsmart/services/notification_service.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/bottomnavbar.dart';
@@ -757,6 +758,13 @@ class _LoginState extends State<Login> {
         );
 
         // Build user profile object
+        final rawProfilePicture = fullProfile["profilePicture"] ??
+            fullProfile["ProfilePicture"] ??
+            "";
+        final signedProfilePicture = empId > 0
+            ? await EmployeeService().fetchProfilePictureDownloadUrl(empId)
+            : null;
+
         final userProfile = {
           "userId": userId,
           "employeeId": empId,
@@ -782,9 +790,7 @@ class _LoginState extends State<Login> {
               "",
           "jobRole": fullProfile["jobRole"] ?? fullProfile["JobRole"] ?? "",
           "userRole": role,
-          "profilePicture": fullProfile["profilePicture"] ??
-              fullProfile["ProfilePicture"] ??
-              "",
+          "profilePicture": signedProfilePicture ?? rawProfilePicture,
           "bankAccountName": fullProfile["bankAccountName"] ??
               fullProfile["BankAccountName"] ??
               "",

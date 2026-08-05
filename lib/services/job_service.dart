@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // Kept only for image upload
+import 'package:http_parser/http_parser.dart';
 import 'package:shiftsmart/models/job.dart';
 import 'package:shiftsmart/models/job_role.dart';
 import 'package:shiftsmart/models/job_role_type.dart';
@@ -117,6 +118,16 @@ class JobService {
     final url =
         Uri.parse('$baseUrl/job/upload-with-image?code=$jobUploadWithImageKey');
     try {
+      final validationError = ApiClient.validateUploadFiles(
+        files: [image],
+        maxFiles: 1,
+        maxFileBytes: 10 * ApiClient.mb,
+        maxRequestBytes: 15 * ApiClient.mb,
+        allowPdf: false,
+        fileLabel: 'Job image',
+      );
+      if (validationError != null) throw Exception(validationError);
+
       final request = http.MultipartRequest("POST", url);
 
       // FIX: Manually get token and add header
@@ -127,7 +138,13 @@ class JobService {
 
       request.fields['job'] = jsonEncode(jobData);
       request.files.add(
-        await http.MultipartFile.fromPath('image', image.path),
+        await http.MultipartFile.fromPath(
+          'image',
+          image.path,
+          contentType: MediaType.parse(
+            ApiClient.uploadMimeType(image, allowPdf: false)!,
+          ),
+        ),
       );
 
       final response = await request.send();
@@ -244,6 +261,16 @@ class JobService {
 
     for (final url in endpoints) {
       try {
+        final validationError = ApiClient.validateUploadFiles(
+          files: [image],
+          maxFiles: 1,
+          maxFileBytes: 10 * ApiClient.mb,
+          maxRequestBytes: 15 * ApiClient.mb,
+          allowPdf: false,
+          fileLabel: 'Job image',
+        );
+        if (validationError != null) throw Exception(validationError);
+
         final request = http.MultipartRequest('PUT', url);
 
         final token = await _apiClient.getAppToken();
@@ -253,8 +280,14 @@ class JobService {
 
         request.fields['job'] = jsonEncode(payload);
         request.files.add(
-        await http.MultipartFile.fromPath('image', image.path),
-      );
+          await http.MultipartFile.fromPath(
+            'image',
+            image.path,
+            contentType: MediaType.parse(
+              ApiClient.uploadMimeType(image, allowPdf: false)!,
+            ),
+          ),
+        );
 
         final response = await request.send();
         final responseBody = await response.stream.bytesToString();

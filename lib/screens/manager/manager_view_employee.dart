@@ -4,12 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:shiftsmart/models/employee.dart';
 import 'package:shiftsmart/models/empcert_model.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
-import 'package:shiftsmart/services/certificate_service.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
 import 'package:shiftsmart/widgets/gradienthorizontal.dart';
 import 'package:shiftsmart/widgets/sidenav.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
+import 'package:shiftsmart/screens/employee/media_viewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class Managerviewemployee extends StatefulWidget {
@@ -27,7 +28,38 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
 
   List<EmployeeCertificate> _certificates = [];
   bool _isLoadingCertificates = true;
-  final CertificateService _certificateService = CertificateService();
+  final EmployeeService _employeeService = EmployeeService();
+  String? _resolvedProfilePictureUrl;
+  String? _lastProfilePictureValue;
+
+  Future<void> _openCertificate(EmployeeCertificate cert) async {
+    String? url;
+    final documentId = cert.documentId ?? 0;
+    if (documentId > 0) {
+      url = await EmployeeService().fetchDocumentDownloadUrl(documentId);
+    }
+    url ??= cert.documentUrl;
+
+    if (url.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Certificate is not available')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaViewer(
+          url: url!,
+          title: cert.fileName.isNotEmpty ? cert.fileName : cert.documentType,
+          isPdf: url.split('?').first.toLowerCase().endsWith('.pdf'),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -37,6 +69,7 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
       if (!_isInitialized) {
         final profile =
             Provider.of<UserProvider>(context, listen: false).userProfile;
+        if (!mounted) return;
         setState(() {
           userProfile = profile;
           _isInitialized = true;
@@ -50,14 +83,17 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
   Future<void> _fetchCertificates() async {
     // final employeeId = widget.employee.employeeId;
     try {
-      final certificates = await _certificateService.fetchCertificates(widget.employee.employeeId);
+      final certificates = await _employeeService
+          .fetchEmployeeDocuments(widget.employee.employeeId);
 
+      if (!mounted) return;
       setState(() {
         _certificates = certificates;
         _isLoadingCertificates = false;
       });
     } catch (e) {
       debugPrint("Error: $e");
+      if (!mounted) return;
       setState(() => _isLoadingCertificates = false);
     }
   }
@@ -339,24 +375,8 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
                                                         color: Colors.white)),
                                               ),
                                               GestureDetector(
-                                                onTap: () async {
-                                                  final url = cert.documentUrl;
-                                                  final uri = Uri.parse(url);
-                                                  if (await canLaunchUrl(uri)) {
-                                                    await launchUrl(
-                                                      uri,
-                                                      mode: LaunchMode.externalApplication,
-                                                    );
-                                                  } else {
-                                                    ScaffoldMessenger.of(
-                                                            context)
-                                                        .showSnackBar(
-                                                      const SnackBar(
-                                                          content: Text(
-                                                              'Cannot open certificate')),
-                                                    );
-                                                  }
-                                                },
+                                                onTap: () =>
+                                                    _openCertificate(cert),
                                                 child: Container(
                                                   width: 100,
                                                   height: 45,
@@ -433,6 +453,7 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
 
   Widget _buildProfileHeader() {
     final profilePicture = widget.employee.profilePicture;
+    _resolveProfilePictureUrl(profilePicture);
 
     ImageProvider? imageProvider;
     if (profilePicture != null && profilePicture.startsWith('data:image')) {
@@ -443,8 +464,10 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
       } catch (_) {
         imageProvider = null;
       }
-    } else if (profilePicture != null && profilePicture.isNotEmpty) {
-      imageProvider = NetworkImage(profilePicture);
+    } else if ((_resolvedProfilePictureUrl ?? profilePicture)?.isNotEmpty ==
+        true) {
+      imageProvider =
+          NetworkImage(_resolvedProfilePictureUrl ?? profilePicture!);
     }
 
     return Center(
@@ -502,6 +525,27 @@ class _ManagerviewemployeeState extends State<Managerviewemployee> {
         ],
       ),
     );
+  }
+
+  void _resolveProfilePictureUrl(String? profilePicture) {
+    final value = profilePicture?.trim() ?? '';
+    if (widget.employee.employeeId <= 0 ||
+        value.isEmpty ||
+        value.startsWith('data:image')) {
+      return;
+    }
+
+    if (_lastProfilePictureValue == value) return;
+    _lastProfilePictureValue = value;
+    _resolvedProfilePictureUrl = null;
+
+    EmployeeService()
+        .fetchProfilePictureDownloadUrl(widget.employee.employeeId)
+        .then((url) {
+      if (!mounted || url == null || url.isEmpty) return;
+      if (_lastProfilePictureValue != value) return;
+      setState(() => _resolvedProfilePictureUrl = url);
+    });
   }
 
   TableRow _buildTableRow(String label, String value) {

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:mime/mime.dart';
 import 'api_client.dart';
 
 class ProfileService {
@@ -171,7 +170,22 @@ class ProfileService {
       }
 
       if (profilePicture != null && profilePicture.existsSync()) {
-        final mimeType = lookupMimeType(profilePicture.path) ?? 'image/jpeg';
+        final validationError = ApiClient.validateUploadFiles(
+          files: [profilePicture],
+          maxFiles: 1,
+          maxFileBytes: 5 * ApiClient.mb,
+          maxRequestBytes: 50 * ApiClient.mb,
+          allowPdf: false,
+          fileLabel: 'Profile image',
+        );
+        if (validationError != null) {
+          return http.Response(validationError, 400);
+        }
+
+        final mimeType = ApiClient.uploadMimeType(
+          profilePicture,
+          allowPdf: false,
+        )!;
         request.files.add(await http.MultipartFile.fromPath(
           'profilePicture',
           profilePicture.path,

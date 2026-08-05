@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shiftsmart/models/empcert_model.dart';
 import 'package:shiftsmart/services/employee_service.dart';
@@ -6,8 +9,8 @@ import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
 import 'package:shiftsmart/widgets/emp_slidenav.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
+import 'media_viewer.dart';
 
 class Employeecert extends StatefulWidget {
   const Employeecert({super.key});
@@ -70,23 +73,27 @@ class _EmployeecertState extends State<Employeecert> {
     }
   }
 
-  Future<void> _viewDocument(String url) async {
+  Future<String> _downloadableDocumentUrl(EmployeeCertificate doc) async {
+    final documentId = doc.documentId ?? 0;
+    if (documentId > 0) {
+      final signedUrl = await EmployeeService().fetchDocumentDownloadUrl(
+        documentId,
+      );
+      if (signedUrl != null && signedUrl.isNotEmpty) return signedUrl;
+    }
+    return doc.documentUrl;
+  }
+
+  Future<void> _viewDocument(EmployeeCertificate doc) async {
+    final url = await _downloadableDocumentUrl(doc);
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Document URL is missing")),
       );
       return;
     }
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Could not open document")),
-        );
-      }
-    }
+    if (!mounted) return;
+    await _openInAppViewer(doc, url);
   }
 
   String _documentTitle(EmployeeCertificate doc) {
@@ -132,6 +139,31 @@ class _EmployeecertState extends State<Employeecert> {
         cleanUrl.endsWith('.webp');
   }
 
+  bool _isPdfUrl(String url) {
+    return url.split('?').first.toLowerCase().endsWith('.pdf');
+  }
+
+  Future<void> _openInAppViewer(EmployeeCertificate doc, String url) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaViewer(
+          url: url,
+          title: _documentTitle(doc),
+          isPdf: _isPdfUrl(url),
+        ),
+      ),
+    );
+  }
+
+  Future<Uint8List> _loadDocumentBytes(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      throw Exception('Could not load document (${response.statusCode}).');
+    }
+    return response.bodyBytes;
+  }
+
   Future<void> _viewDocumentGroup(List<EmployeeCertificate> docs) async {
     final availableDocs =
         docs.where((doc) => doc.documentUrl.trim().isNotEmpty).toList();
@@ -145,12 +177,23 @@ class _EmployeecertState extends State<Employeecert> {
 
     if (availableDocs.length == 1 &&
         !_isImageUrl(availableDocs.first.documentUrl)) {
-      await _viewDocument(availableDocs.first.documentUrl);
+      await _viewDocument(availableDocs.first);
       return;
     }
 
     final controller = PageController();
     var currentIndex = 0;
+    final urlFutures = <int, Future<String>>{};
+    final byteFutures = <String, Future<Uint8List>>{};
+
+    Future<String> urlFor(EmployeeCertificate doc) {
+      final key = doc.documentId ?? availableDocs.indexOf(doc);
+      return urlFutures.putIfAbsent(key, () => _downloadableDocumentUrl(doc));
+    }
+
+    Future<Uint8List> bytesFor(String url) {
+      return byteFutures.putIfAbsent(url, () => _loadDocumentBytes(url));
+    }
 
     await showDialog(
       context: context,
@@ -200,53 +243,64 @@ class _EmployeecertState extends State<Employeecert> {
                         },
                         itemBuilder: (context, index) {
                           final doc = availableDocs[index];
-                          final url = doc.documentUrl;
 
-                          if (_isImageUrl(url)) {
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: InteractiveViewer(
-                                minScale: 0.8,
-                                maxScale: 4,
-                                child: Image.network(
-                                  url,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Center(
-                                    child: Text(
-                                      "Could not load image",
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
+                          return FutureBuilder<String>(
+                            future: urlFor(doc),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState !=
+                                  ConnectionState.done) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF3498DB),
                                   ),
-                                ),
-                              ),
-                            );
-                          }
+                                );
+                              }
 
-                          return Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.insert_drive_file,
-                                    color: Color(0xFF3498DB), size: 54),
-                                const SizedBox(height: 12),
-                                Text(
-                                  path.basename(url.split('?').first),
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 13),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () => _viewDocument(url),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3498DB),
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text("OPEN DOCUMENT"),
-                                ),
-                              ],
-                            ),
+                              final url = snapshot.data ?? doc.documentUrl;
+                              if (_isImageUrl(url)) {
+                                return FutureBuilder<Uint8List>(
+                                  future: bytesFor(url),
+                                  builder: (context, imageSnapshot) {
+                                    if (imageSnapshot.connectionState !=
+                                        ConnectionState.done) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFF3498DB),
+                                        ),
+                                      );
+                                    }
+
+                                    if (imageSnapshot.hasError ||
+                                        !imageSnapshot.hasData) {
+                                      return _documentOpenFallback(
+                                        doc,
+                                        onRetry: () {
+                                          final key = doc.documentId ?? index;
+                                          urlFutures.remove(key);
+                                          byteFutures.clear();
+                                          setDialogState(() {});
+                                        },
+                                      );
+                                    }
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16),
+                                      child: InteractiveViewer(
+                                        minScale: 0.8,
+                                        maxScale: 4,
+                                        child: Image.memory(
+                                          imageSnapshot.data!,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              }
+
+                              return _documentOpenFallback(doc, url: url);
+                            },
                           );
                         },
                       ),
@@ -280,6 +334,48 @@ class _EmployeecertState extends State<Employeecert> {
     );
 
     controller.dispose();
+  }
+
+  Widget _documentOpenFallback(
+    EmployeeCertificate doc, {
+    String? url,
+    VoidCallback? onRetry,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.insert_drive_file,
+              color: Color(0xFF3498DB), size: 54),
+          const SizedBox(height: 12),
+          Text(
+            path.basename((url ?? doc.documentUrl).split('?').first),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () async {
+              final documentUrl = url ?? await _downloadableDocumentUrl(doc);
+              if (!mounted) return;
+              await _openInAppViewer(doc, documentUrl);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3498DB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("OPEN DOCUMENT"),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text("Retry preview"),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _deleteDocument(EmployeeCertificate doc) async {

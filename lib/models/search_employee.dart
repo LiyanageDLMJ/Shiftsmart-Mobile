@@ -15,6 +15,19 @@ class SearchEmployee {
     required this.role,
   });
 
+  SearchEmployee copyWith({
+    String? profilePicture,
+  }) {
+    return SearchEmployee(
+      employeeId: employeeId,
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      profilePicture: profilePicture ?? this.profilePicture,
+      role: role,
+    );
+  }
+
   factory SearchEmployee.fromJson(Map<String, dynamic> json) {
     return SearchEmployee(
       // Handle both casing styles (PascalCase vs camelCase) just to be safe

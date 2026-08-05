@@ -274,6 +274,7 @@ class _ManagercreateshiftState extends State<Managercreateshift> {
   bool _isEmployeeActive(Employee employee) {
     return (employee.employmentStatus ?? '').trim().toLowerCase() == 'active';
   }
+
   DateTime _dateOnly(DateTime date) {
     return DateTime(date.year, date.month, date.day);
   }
@@ -545,10 +546,16 @@ class _ManagercreateshiftState extends State<Managercreateshift> {
 
         if (success) {
           successCount++;
-          // Send Notifications
+
+          final notificationMessage = isUpdate
+              ? "Shift updated: $dateStr at $timeOnlyStart"
+              : "New shift assigned: $dateStr at $timeOnlyStart";
+
           for (var empId in _selectedEmptIds) {
             await _notificationService.sendShiftNotification(
-                empId, "New shift assigned: $dateStr at $timeOnlyStart");
+              empId,
+              notificationMessage,
+            );
           }
         } else {
           anyFailure = true;

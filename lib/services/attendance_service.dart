@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:mime/mime.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shiftsmart/utils/date_time_parser.dart';
 import 'api_client.dart';
@@ -305,6 +304,18 @@ class AttendanceService {
     final url =
         Uri.parse('$baseUrl/attendance/clockin?code=$attendanceClockInKey');
     try {
+      final validationError = ApiClient.validateUploadFiles(
+        files: photos,
+        maxFiles: 5,
+        maxFileBytes: 5 * ApiClient.mb,
+        maxRequestBytes: 30 * ApiClient.mb,
+        allowPdf: false,
+        fileLabel: 'Attendance photo',
+      );
+      if (validationError != null) {
+        return {'success': false, 'error': validationError};
+      }
+
       final request = http.MultipartRequest("POST", url);
 
       final token = await _apiClient.getAppToken();
@@ -313,7 +324,7 @@ class AttendanceService {
       }
 
       for (var file in photos) {
-        final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
+        final mimeType = ApiClient.uploadMimeType(file, allowPdf: false)!;
         request.files.add(await http.MultipartFile.fromPath(
           'photo',
           file.path,
@@ -384,6 +395,18 @@ class AttendanceService {
     final url = Uri.parse(
         '$baseUrl/attendance/clockout/$attendanceId?code=$attendanceClockOutKey');
     try {
+      final validationError = ApiClient.validateUploadFiles(
+        files: photos,
+        maxFiles: 5,
+        maxFileBytes: 5 * ApiClient.mb,
+        maxRequestBytes: 30 * ApiClient.mb,
+        allowPdf: false,
+        fileLabel: 'Attendance photo',
+      );
+      if (validationError != null) {
+        return {'success': false, 'error': validationError};
+      }
+
       final request = http.MultipartRequest('PUT', url);
 
       final token = await _apiClient.getAppToken();
@@ -392,7 +415,7 @@ class AttendanceService {
       }
 
       for (var file in photos) {
-        final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
+        final mimeType = ApiClient.uploadMimeType(file, allowPdf: false)!;
         request.files.add(await http.MultipartFile.fromPath(
           'photo',
           file.path,
@@ -582,7 +605,17 @@ class AttendanceService {
       request.fields['approvalStatus'] = status;
 
       if (proofPhoto != null) {
-        final mimeType = lookupMimeType(proofPhoto.path) ?? 'image/jpeg';
+        final validationError = ApiClient.validateUploadFiles(
+          files: [proofPhoto],
+          maxFiles: 1,
+          maxFileBytes: 5 * ApiClient.mb,
+          maxRequestBytes: 30 * ApiClient.mb,
+          allowPdf: false,
+          fileLabel: 'Attendance photo',
+        );
+        if (validationError != null) return false;
+
+        final mimeType = ApiClient.uploadMimeType(proofPhoto, allowPdf: false)!;
         request.files.add(await http.MultipartFile.fromPath(
           'proofPhoto',
           proofPhoto.path,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
+import 'package:shiftsmart/services/employee_service.dart';
 
 class ProfileAvatar extends StatefulWidget {
   final bool editable;
@@ -32,6 +33,9 @@ class ProfileAvatar extends StatefulWidget {
 
 class _ProfileAvatarState extends State<ProfileAvatar> {
   File? _selectedImageFile;
+  String? _resolvedImageUrl;
+  String? _lastImageValue;
+  int? _lastEmployeeId;
 
   @override
   void initState() {
@@ -102,7 +106,9 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
         : const <String, dynamic>{};
     final imageValue =
         userProfile["profilePicture"] ?? userProfile["ProfilePicture"];
-    final imageProvider = _imageProvider(imageValue);
+    final employeeId = _employeeIdFrom(userProfile);
+    _resolveProfileImageUrl(employeeId, imageValue);
+    final imageProvider = _imageProvider(_resolvedImageUrl ?? imageValue);
 
     final avatar = Container(
       width: 100,
@@ -180,5 +186,35 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     }
 
     return NetworkImage(image);
+  }
+
+  int? _employeeIdFrom(Map<String, dynamic> profile) {
+    final raw = profile['employeeId'] ??
+        profile['EmployeeId'] ??
+        profile['userId'] ??
+        profile['UserId'];
+    if (raw is int) return raw;
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  void _resolveProfileImageUrl(int? employeeId, dynamic imageValue) {
+    final image = imageValue?.toString().trim() ?? '';
+    if (employeeId == null ||
+        employeeId <= 0 ||
+        image.isEmpty ||
+        image.startsWith('data:image')) {
+      return;
+    }
+
+    if (_lastEmployeeId == employeeId && _lastImageValue == image) return;
+    _lastEmployeeId = employeeId;
+    _lastImageValue = image;
+    _resolvedImageUrl = null;
+
+    EmployeeService().fetchProfilePictureDownloadUrl(employeeId).then((url) {
+      if (!mounted || url == null || url.isEmpty) return;
+      if (_lastEmployeeId != employeeId || _lastImageValue != image) return;
+      setState(() => _resolvedImageUrl = url);
+    });
   }
 }
