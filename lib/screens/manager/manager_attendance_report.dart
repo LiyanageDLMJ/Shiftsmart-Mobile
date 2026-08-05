@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shiftsmart/models/attendance.dart';
 import 'package:shiftsmart/screens/manager/manager_attendace_view.dart';
 import 'package:shiftsmart/services/attendance_report_service.dart';
+import 'package:shiftsmart/services/attendance_service.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
 import 'package:shiftsmart/widgets/search.dart';
@@ -31,6 +32,8 @@ class _ManagerattendancereportState extends State<Managerattendancereport> {
   // State Variables
   List<Attendance> _allAttendances = [];
   List<Attendance> _filteredAttendances = [];
+  final AttendanceService _attendanceService = AttendanceService();
+  final Map<String, Future<List<AttendancePhoto>>> _photoFutures = {};
   bool isLoading = true;
 
   @override
@@ -50,6 +53,7 @@ class _ManagerattendancereportState extends State<Managerattendancereport> {
           _allAttendances = attendances;
           _filteredAttendances =
               List.from(attendances); // Initialize filter list
+          _photoFutures.clear();
           isLoading = false;
         });
       }
@@ -268,17 +272,9 @@ class _ManagerattendancereportState extends State<Managerattendancereport> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (attendance.clockInPhotoUrls.isNotEmpty)
-                _buildThumbnail(
-                  attendance.clockInPhotoUrls.first,
-                  count: attendance.clockInPhotoUrls.length,
-                ),
+              _buildSecureThumbnail(attendance, isClockIn: true),
               const SizedBox(width: 4),
-              if (attendance.clockOutPhotoUrls.isNotEmpty)
-                _buildThumbnail(
-                  attendance.clockOutPhotoUrls.first,
-                  count: attendance.clockOutPhotoUrls.length,
-                ),
+              _buildSecureThumbnail(attendance, isClockIn: false),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -345,6 +341,52 @@ class _ManagerattendancereportState extends State<Managerattendancereport> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildSecureThumbnail(
+    Attendance attendance, {
+    required bool isClockIn,
+  }) {
+    if (attendance.attendanceId <= 0) return const SizedBox.shrink();
+
+    final cacheKey =
+        '${attendance.attendanceId}_${isClockIn ? 'clockIn' : 'clockOut'}';
+    final future = _photoFutures.putIfAbsent(
+      cacheKey,
+      () => isClockIn
+          ? _attendanceService.fetchClockInPhotos(attendance.attendanceId)
+          : _attendanceService.fetchClockOutPhotos(attendance.attendanceId),
+    );
+
+    return FutureBuilder<List<AttendancePhoto>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 35,
+            height: 35,
+            child: Center(
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white38,
+                ),
+              ),
+            ),
+          );
+        }
+
+        final photos = snapshot.data ?? const <AttendancePhoto>[];
+        if (photos.isEmpty) return const SizedBox.shrink();
+
+        return _buildThumbnail(
+          photos.first.url,
+          count: photos.length,
+        );
+      },
     );
   }
 

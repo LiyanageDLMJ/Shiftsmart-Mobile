@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shiftsmart/models/attendance.dart';
 import 'package:shiftsmart/utils/date_time_parser.dart';
 import 'api_client.dart';
 
@@ -111,6 +112,154 @@ class AttendanceService {
     return null;
   }
 
+  DateTime _defaultPhotoExpiry() =>
+      DateTime.now().toUtc().add(const Duration(minutes: 10));
+
+  List<AttendancePhoto> _photoFromValue(
+    dynamic value, {
+    DateTime? expiresAt,
+  }) {
+    if (value == null) return const [];
+
+    if (value is List) {
+      return value
+          .expand((item) => _photoFromValue(item, expiresAt: expiresAt))
+          .toList(growable: false);
+    }
+
+    if (value is Map<String, dynamic>) {
+      final photo = AttendancePhoto.fromJson(value);
+      return _validPhotoUrl(photo.url) == null ? const [] : [photo];
+    }
+
+    final text = value.toString().trim();
+    if (text.isEmpty) return const [];
+
+    final values = text.toLowerCase().startsWith('data:image')
+        ? [text]
+        : text.split(',').map((url) => url.trim()).toList();
+
+    return values
+        .map(_validPhotoUrl)
+        .whereType<String>()
+        .map((url) => AttendancePhoto(
+              url: url,
+              expiresAt: expiresAt ?? _defaultPhotoExpiry(),
+            ))
+        .toList(growable: false);
+  }
+
+  List<AttendancePhoto> _parsePhotoPayload(dynamic payload) {
+    if (payload == null) return const [];
+
+    if (payload is List) {
+      return _photoFromValue(payload);
+    }
+
+    if (payload is Map<String, dynamic>) {
+      final photos = payload['photos'] ?? payload['Photos'];
+      final parsedPhotos = _photoFromValue(photos);
+      if (parsedPhotos.isNotEmpty) return parsedPhotos;
+
+      final expiresAtValue = payload['expiresAt'] ?? payload['ExpiresAt'];
+      final expiresAt = expiresAtValue == null
+          ? null
+          : DateTime.tryParse(expiresAtValue.toString());
+
+      final photoUrls = payload['photoUrls'] ??
+          payload['PhotoUrls'] ??
+          payload['urls'] ??
+          payload['Urls'];
+      final parsedPhotoUrls = _photoFromValue(photoUrls, expiresAt: expiresAt);
+      if (parsedPhotoUrls.isNotEmpty) return parsedPhotoUrls;
+
+      return _photoFromValue(
+        payload['photoUrl'] ??
+            payload['PhotoUrl'] ??
+            payload['url'] ??
+            payload['Url'] ??
+            payload['imageUrl'] ??
+            payload['ImageUrl'] ??
+            payload['data'] ??
+            payload['Data'] ??
+            payload['base64'] ??
+            payload['Base64'],
+        expiresAt: expiresAt,
+      );
+    }
+
+    return _photoFromValue(payload);
+  }
+
+  String _imageDataUriFromResponse(http.Response response) {
+    final contentType = response.headers['content-type'] ?? 'image/jpeg';
+    return 'data:$contentType;base64,${base64Encode(response.bodyBytes)}';
+  }
+
+  Future<List<AttendancePhoto>> _fetchClockPhotos(
+    int attendanceId, {
+    required bool isClockIn,
+  }) async {
+    final endpoint = isClockIn ? 'view-clockin-photo' : 'view-clockout-photo';
+    final photoKey = isClockIn
+        ? attendanceViewClockInPhotoKey
+        : attendanceViewClockOutPhotoKey;
+    final label = isClockIn ? 'clock-in' : 'clock-out';
+
+    if (photoKey.isEmpty) {
+      debugPrint(
+          'AttendanceService: ${isClockIn ? "ATTENDANCE_VIEW_CLOCKIN_PHOTO_KEY" : "ATTENDANCE_VIEW_CLOCKOUT_PHOTO_KEY"} is missing');
+      return const [];
+    }
+
+    try {
+      final uri = Uri.parse('$baseUrl/attendance/$endpoint/$attendanceId')
+          .replace(queryParameters: {'code': photoKey});
+      final response = await _apiClient.get(uri.toString(), useAuth: true);
+
+      if (response.statusCode == 404) {
+        debugPrint('AttendanceService: no $label photo for $attendanceId');
+        return const [];
+      }
+
+      if (response.statusCode != 200) {
+        debugPrint(
+            'AttendanceService: failed to fetch $label photos. Status: ${response.statusCode}');
+        return const [];
+      }
+
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.toLowerCase().startsWith('image/')) {
+        return [
+          AttendancePhoto(
+            url: _imageDataUriFromResponse(response),
+            expiresAt: _defaultPhotoExpiry(),
+          )
+        ];
+      }
+
+      final decoded = jsonDecode(response.body);
+      final payload = decoded is Map<String, dynamic>
+          ? decoded['data'] ?? decoded['Data'] ?? decoded
+          : decoded;
+
+      return _parsePhotoPayload(payload)
+          .where((photo) => !photo.isExpired)
+          .toList(growable: false);
+    } catch (e) {
+      debugPrint('Error fetching $label attendance photos: $e');
+      return const [];
+    }
+  }
+
+  Future<List<AttendancePhoto>> fetchClockInPhotos(int attendanceId) {
+    return _fetchClockPhotos(attendanceId, isClockIn: true);
+  }
+
+  Future<List<AttendancePhoto>> fetchClockOutPhotos(int attendanceId) {
+    return _fetchClockPhotos(attendanceId, isClockIn: false);
+  }
+
   Future<List<dynamic>> fetchMyAttendanceRecords({
     int pageNumber = 1,
     int pageSize = 100,
@@ -145,80 +294,29 @@ class AttendanceService {
 
   Future<String?> fetchClockPhotoUrl(int attendanceId,
       {required isClockIn}) async {
-    final endPoint = isClockIn ? 'view-clockin-photo' : 'view-clockout-photo';
-    final photoKey = isClockIn
-        ? attendanceViewClockInPhotoKey
-        : attendanceViewClockOutPhotoKey;
-    final url = '$baseUrl/attendance/$endPoint/$attendanceId?code=$photoKey';
-    try {
-      final response = await _apiClient.get(url, useAuth: true);
-      if (response.statusCode != 200) return null;
-
-      final jsonData = jsonDecode(response.body);
-      if (jsonData is Map<String, dynamic>) {
-        final data = jsonData['data'] ?? jsonData['Data'];
-        if (data is Map<String, dynamic>) {
-          return _validPhotoUrl(data['photoUrl'] ??
-              data['PhotoUrl'] ??
-              data['url'] ??
-              data['Url'] ??
-              data['imageUrl'] ??
-              data['ImageUrl'] ??
-              data['data'] ??
-              data['Data'] ??
-              data['base64'] ??
-              data['Base64']);
-        }
-
-        return _validPhotoUrl(jsonData['photoUrl'] ??
-            jsonData['PhotoUrl'] ??
-            jsonData['url'] ??
-            jsonData['Url'] ??
-            jsonData['imageUrl'] ??
-            jsonData['ImageUrl'] ??
-            jsonData['data'] ??
-            jsonData['Data'] ??
-            jsonData['base64'] ??
-            jsonData['Base64']);
-      }
-
-      return _validPhotoUrl(jsonData);
-    } catch (e) {
-      debugPrint("Error fetching clock ${isClockIn ? "in" : "out"} photo: $e");
-    }
-    return null;
+    final photos = await _fetchClockPhotos(attendanceId, isClockIn: isClockIn);
+    return photos.isEmpty ? null : photos.first.url;
   }
 
-  Future<Map<String, String?>> fetchAttendancePhotos(
+  Future<Map<String, List<AttendancePhoto>>> fetchAttendancePhotoLists(
       int employeeId, int shiftId) async {
     try {
       final myRecord = await fetchMyAttendanceForShift(shiftId);
       if (myRecord != null) {
+        final attendanceId = _readIntField(
+            myRecord, const ['AttendanceId', 'attendanceId', 'Id', 'id']);
+        if (attendanceId != null && attendanceId > 0) {
+          final clockInPhotos = await fetchClockInPhotos(attendanceId);
+          final clockOutPhotos = await fetchClockOutPhotos(attendanceId);
+          return {
+            'clockIn': clockInPhotos,
+            'clockOut': clockOutPhotos,
+          };
+        }
+
         return {
-          'clockIn': _validPhotoUrl(_readField(myRecord, const [
-            'ClockInPhotoUrl',
-            'clockInPhotoUrl',
-            'ClockInPhotoURL',
-            'clockInPhotoURL',
-            'ClockInPhoto',
-            'clockInPhoto',
-            'ClockInImageUrl',
-            'clockInImageUrl',
-            'ClockInImage',
-            'clockInImage',
-          ])),
-          'clockOut': _validPhotoUrl(_readField(myRecord, const [
-            'ClockOutPhotoUrl',
-            'clockOutPhotoUrl',
-            'ClockOutPhotoURL',
-            'clockOutPhotoURL',
-            'ClockOutPhoto',
-            'clockOutPhoto',
-            'ClockOutImageUrl',
-            'clockOutImageUrl',
-            'ClockOutImage',
-            'clockOutImage',
-          ])),
+          'clockIn': const [],
+          'clockOut': const [],
         };
       }
 
@@ -230,37 +328,38 @@ class AttendanceService {
         final jsonData = _decodeAttendanceList(response.body);
         final record = _findShiftRecord(jsonData, shiftId);
         if (record == null) return {};
+        final attendanceId = _readIntField(
+            record, const ['AttendanceId', 'attendanceId', 'Id', 'id']);
+        if (attendanceId != null && attendanceId > 0) {
+          final clockInPhotos = await fetchClockInPhotos(attendanceId);
+          final clockOutPhotos = await fetchClockOutPhotos(attendanceId);
+          return {
+            'clockIn': clockInPhotos,
+            'clockOut': clockOutPhotos,
+          };
+        }
+
         return {
-          'clockIn': _validPhotoUrl(_readField(record, const [
-            'ClockInPhotoUrl',
-            'clockInPhotoUrl',
-            'ClockInPhotoURL',
-            'clockInPhotoURL',
-            'ClockInPhoto',
-            'clockInPhoto',
-            'ClockInImageUrl',
-            'clockInImageUrl',
-            'ClockInImage',
-            'clockInImage',
-          ])),
-          'clockOut': _validPhotoUrl(_readField(record, const [
-            'ClockOutPhotoUrl',
-            'clockOutPhotoUrl',
-            'ClockOutPhotoURL',
-            'clockOutPhotoURL',
-            'ClockOutPhoto',
-            'clockOutPhoto',
-            'ClockOutImageUrl',
-            'clockOutImageUrl',
-            'ClockOutImage',
-            'clockOutImage',
-          ])),
+          'clockIn': const [],
+          'clockOut': const [],
         };
       }
     } catch (e) {
       debugPrint("Error fetching attendance photos: $e");
     }
     return {};
+  }
+
+  Future<Map<String, String?>> fetchAttendancePhotos(
+      int employeeId, int shiftId) async {
+    final photos = await fetchAttendancePhotoLists(employeeId, shiftId);
+    final clockInPhotos = photos['clockIn'] ?? const <AttendancePhoto>[];
+    final clockOutPhotos = photos['clockOut'] ?? const <AttendancePhoto>[];
+
+    return {
+      'clockIn': clockInPhotos.isEmpty ? null : clockInPhotos.first.url,
+      'clockOut': clockOutPhotos.isEmpty ? null : clockOutPhotos.first.url,
+    };
   }
 
   Future<dynamic> getShiftsByShiftId(int employeeId, {int? shiftId}) async {

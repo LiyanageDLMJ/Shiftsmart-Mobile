@@ -28,65 +28,36 @@ class Managerattendaceview extends StatefulWidget {
 
 class _ManagerattendaceviewState extends State<Managerattendaceview> {
   final AttendanceService _attendanceService = AttendanceService();
-  late List<String> _clockInPhotoUrls;
-  late List<String> _clockOutPhotoUrls;
+  List<AttendancePhoto> _clockInPhotos = [];
+  List<AttendancePhoto> _clockOutPhotos = [];
   bool _isLoadingEvidence = false;
 
   @override
   void initState() {
     super.initState();
-    _clockInPhotoUrls = List.from(widget.attendance.clockInPhotoUrls);
-    _clockOutPhotoUrls = List.from(widget.attendance.clockOutPhotoUrls);
     _loadMissingEvidence();
     enableFullScreen();
   }
 
   Future<void> _loadMissingEvidence() async {
-    if (_clockInPhotoUrls.isNotEmpty && _clockOutPhotoUrls.isNotEmpty) return;
-
     setState(() => _isLoadingEvidence = true);
 
     try {
-      String? clockInUrl;
-      String? clockOutUrl;
+      List<AttendancePhoto> clockInPhotos = const [];
+      List<AttendancePhoto> clockOutPhotos = const [];
 
       if (widget.attendance.attendanceId > 0) {
-        if (_clockInPhotoUrls.isEmpty) {
-          clockInUrl = await _attendanceService.fetchClockPhotoUrl(
-            widget.attendance.attendanceId,
-            isClockIn: true,
-          );
-        }
-
-        if (_clockOutPhotoUrls.isEmpty) {
-          clockOutUrl = await _attendanceService.fetchClockPhotoUrl(
-            widget.attendance.attendanceId,
-            isClockIn: false,
-          );
-        }
-      }
-
-      if ((clockInUrl == null || clockOutUrl == null) &&
-          widget.attendance.employeeId > 0 &&
-          widget.attendance.shiftId > 0) {
-        final photos = await _attendanceService.fetchAttendancePhotos(
-          widget.attendance.employeeId,
-          widget.attendance.shiftId,
-        );
-
-        clockInUrl ??= photos['clockIn'];
-        clockOutUrl ??= photos['clockOut'];
+        clockInPhotos = await _attendanceService
+            .fetchClockInPhotos(widget.attendance.attendanceId);
+        clockOutPhotos = await _attendanceService
+            .fetchClockOutPhotos(widget.attendance.attendanceId);
       }
 
       if (!mounted) return;
 
       setState(() {
-        if (_clockInPhotoUrls.isEmpty && _hasImageValue(clockInUrl)) {
-          _clockInPhotoUrls = [clockInUrl!.trim()];
-        }
-        if (_clockOutPhotoUrls.isEmpty && _hasImageValue(clockOutUrl)) {
-          _clockOutPhotoUrls = [clockOutUrl!.trim()];
-        }
+        _clockInPhotos = clockInPhotos;
+        _clockOutPhotos = clockOutPhotos;
       });
     } catch (e) {
       debugPrint('Error loading attendance evidence: $e');
@@ -517,8 +488,8 @@ class _ManagerattendaceviewState extends State<Managerattendaceview> {
                               ),
                             ),
                           )
-                        else if (_clockInPhotoUrls.isEmpty &&
-                            _clockOutPhotoUrls.isEmpty)
+                        else if (_clockInPhotos.isEmpty &&
+                            _clockOutPhotos.isEmpty)
                           const Text(
                             "No attendance photos recorded for this shift.",
                             style:
@@ -622,15 +593,15 @@ class _ManagerattendaceviewState extends State<Managerattendaceview> {
 
   Widget _buildEvidenceGallery() {
     final sections = <Widget>[
-      if (_clockInPhotoUrls.isNotEmpty)
+      if (_clockInPhotos.isNotEmpty)
         _buildEvidenceSection(
           "Clock In",
-          _clockInPhotoUrls,
+          _clockInPhotos,
         ),
-      if (_clockOutPhotoUrls.isNotEmpty)
+      if (_clockOutPhotos.isNotEmpty)
         _buildEvidenceSection(
           "Clock Out",
-          _clockOutPhotoUrls,
+          _clockOutPhotos,
         ),
     ];
 
@@ -647,28 +618,28 @@ class _ManagerattendaceviewState extends State<Managerattendaceview> {
     );
   }
 
-  Widget _buildEvidenceSection(String label, List<String> urls) {
+  Widget _buildEvidenceSection(String label, List<AttendancePhoto> photos) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          urls.length == 1 ? label : "$label (${urls.length})",
+          photos.length == 1 ? label : "$label (${photos.length})",
           style: const TextStyle(
               color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
         LayoutBuilder(
           builder: (context, constraints) {
-            final tileWidth = urls.length == 1
+            final tileWidth = photos.length == 1
                 ? constraints.maxWidth
                 : (constraints.maxWidth - 12) / 2;
             return Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: urls
-                  .map((url) => SizedBox(
+              children: photos
+                  .map((photo) => SizedBox(
                         width: tileWidth,
-                        child: _buildEvidenceBox(url),
+                        child: _buildEvidenceBox(photo.url),
                       ))
                   .toList(),
             );
@@ -731,13 +702,6 @@ class _ManagerattendaceviewState extends State<Managerattendaceview> {
     return const Center(
       child: Icon(Icons.broken_image, color: Colors.white24),
     );
-  }
-
-  bool _hasImageValue(String? value) {
-    final trimmed = value?.trim();
-    if (trimmed == null || trimmed.isEmpty) return false;
-    final lower = trimmed.toLowerCase();
-    return lower != 'null' && lower != 'undefined' && lower != 'none';
   }
 
   Uint8List? _decodeImageBytes(String value) {

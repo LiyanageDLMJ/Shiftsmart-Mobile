@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shiftsmart/models/attendance.dart';
 import 'package:shiftsmart/models/job.dart';
 import 'package:shiftsmart/models/site.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
@@ -61,6 +63,9 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   File? clockOutPhoto;
   String? clockInPhotoUrl;
   String? clockOutPhotoUrl;
+  List<AttendancePhoto> _clockInSignedPhotos = [];
+  List<AttendancePhoto> _clockOutSignedPhotos = [];
+  bool _isLoadingAttendancePhotos = false;
   String? earlyExitReason;
   int? attendanceId;
   Site? currentSite;
@@ -310,18 +315,6 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     final nextClockOutTime = parseServerDateTime(_fieldValue(data, [
       'ClockOutTime',
     ]));
-    final nextClockInPhotoUrl = _stringValue(data, [
-      'ClockInPhotoUrl',
-      'clockInPhotoUrl',
-      'clockInPhotoURL',
-      'ClockInPhotoURL',
-    ]);
-    final nextClockOutPhotoUrl = _stringValue(data, [
-      'ClockOutPhotoUrl',
-      'clockOutPhotoUrl',
-      'clockOutPhotoURL',
-      'ClockOutPhotoURL',
-    ]);
     final nextEarlyExitReason = _stringValue(data, [
       'EarlyExitReason',
       'earlyExitReason',
@@ -337,8 +330,6 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     if (nextClockOutTime != null && nextClockOutTime.year > 1900) {
       clockOutTime = nextClockOutTime;
     }
-    clockInPhotoUrl = nextClockInPhotoUrl ?? clockInPhotoUrl;
-    clockOutPhotoUrl = nextClockOutPhotoUrl ?? clockOutPhotoUrl;
     earlyExitReason = nextEarlyExitReason ?? earlyExitReason;
     attendanceId = _intValue(_fieldValue(data, [
           'AttendanceId',
@@ -347,51 +338,35 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         attendanceId;
   }
 
-  bool _hasPhotoUrl(String? url) => url != null && url.trim().isNotEmpty;
-
   Future<void> _loadAttendancePhotos() async {
+    if (attendanceId == null || attendanceId! <= 0) return;
+
+    if (mounted) {
+      setState(() => _isLoadingAttendancePhotos = true);
+    }
+
     try {
-      String? nextClockInUrl;
-      String? nextClockOutUrl;
-
-      if (attendanceId != null) {
-        nextClockInUrl = await _attendanceService.fetchClockPhotoUrl(
-          attendanceId!,
-          isClockIn: true,
-        );
-        nextClockOutUrl = await _attendanceService.fetchClockPhotoUrl(
-          attendanceId!,
-          isClockIn: false,
-        );
-      }
-
-      if (!_hasPhotoUrl(nextClockInUrl) || !_hasPhotoUrl(nextClockOutUrl)) {
-        final photos = await _attendanceService.fetchAttendancePhotos(
-          widget.employeeId,
-          widget.shiftId,
-        );
-
-        nextClockInUrl ??= photos['clockIn'];
-        nextClockOutUrl ??= photos['clockOut'];
-      }
+      final nextClockInPhotos =
+          await _attendanceService.fetchClockInPhotos(attendanceId!);
+      final nextClockOutPhotos =
+          await _attendanceService.fetchClockOutPhotos(attendanceId!);
 
       if (!mounted) return;
 
-      final shouldUpdateClockIn =
-          _hasPhotoUrl(nextClockInUrl) && nextClockInUrl != clockInPhotoUrl;
-      final shouldUpdateClockOut =
-          _hasPhotoUrl(nextClockOutUrl) && nextClockOutUrl != clockOutPhotoUrl;
-
-      if (!shouldUpdateClockIn && !shouldUpdateClockOut) return;
-
       setState(() {
-        if (shouldUpdateClockIn) clockInPhotoUrl = nextClockInUrl;
-        if (shouldUpdateClockOut) clockOutPhotoUrl = nextClockOutUrl;
+        _clockInSignedPhotos = nextClockInPhotos;
+        _clockOutSignedPhotos = nextClockOutPhotos;
+        clockInPhotoUrl =
+            nextClockInPhotos.isEmpty ? null : nextClockInPhotos.first.url;
+        clockOutPhotoUrl =
+            nextClockOutPhotos.isEmpty ? null : nextClockOutPhotos.first.url;
       });
-
-      await _saveShiftProgress();
     } catch (e) {
       debugPrint('Error loading attendance photos: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAttendancePhotos = false);
+      }
     }
   }
 
@@ -632,8 +607,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             currentBreakStart =
                 parseServerDateTime(progress['currentBreakStart']);
           }
-          clockInPhotoUrl = progress['clockInPhotoUrl'];
-          clockOutPhotoUrl = progress['clockOutPhotoUrl'];
+          clockInPhotoUrl = null;
+          clockOutPhotoUrl = null;
           earlyExitReason = progress['earlyExitReason'];
           attendanceId = progress['attendanceId'];
           myStatus = progress['myStatus'] ?? myStatus;
@@ -759,8 +734,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
               })
           .toList(),
       'currentBreakStart': formatDateTimeForServer(currentBreakStart),
-      'clockInPhotoUrl': clockInPhotoUrl,
-      'clockOutPhotoUrl': clockOutPhotoUrl,
+      'clockInPhotoUrl': null,
+      'clockOutPhotoUrl': null,
       'earlyExitReason': earlyExitReason,
       'attendanceId': attendanceId,
       'myStatus': myStatus,
@@ -1815,9 +1790,11 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     final earlyExitReasonText = earlyExitReason?.trim();
     final showEarlyExitReason =
         _wasEarlyDeparture() && earlyExitReasonText?.isNotEmpty == true;
-    final hasAttendanceEvidence =
-        _hasAttendancePhoto(clockInPhoto, clockInPhotoUrl) ||
-            _hasAttendancePhoto(clockOutPhoto, clockOutPhotoUrl);
+    final hasAttendanceEvidence = _hasAttendancePhoto(
+          clockInPhoto,
+          _clockInSignedPhotos,
+        ) ||
+        _hasAttendancePhoto(clockOutPhoto, _clockOutSignedPhotos);
 
     return Container(
       width: double.infinity,
@@ -1934,27 +1911,34 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             ],
           ),
           const SizedBox(height: 10),
-          if (hasAttendanceEvidence)
-            Row(
+          if (_isLoadingAttendancePhotos)
+            const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white70,
+                ),
+              ),
+            )
+          else if (hasAttendanceEvidence)
+            Column(
               children: [
-                if (_hasAttendancePhoto(clockInPhoto, clockInPhotoUrl))
-                  Expanded(
-                    child: _buildAttendancePhotoPreview(
-                      'Clock In',
-                      file: clockInPhoto,
-                      url: clockInPhotoUrl,
-                    ),
+                if (_hasAttendancePhoto(clockInPhoto, _clockInSignedPhotos))
+                  _buildAttendancePhotoGroup(
+                    'Clock In',
+                    file: clockInPhoto,
+                    photos: _clockInSignedPhotos,
                   ),
-                if (_hasAttendancePhoto(clockInPhoto, clockInPhotoUrl) &&
-                    _hasAttendancePhoto(clockOutPhoto, clockOutPhotoUrl))
-                  const SizedBox(width: 12),
-                if (_hasAttendancePhoto(clockOutPhoto, clockOutPhotoUrl))
-                  Expanded(
-                    child: _buildAttendancePhotoPreview(
-                      'Clock Out',
-                      file: clockOutPhoto,
-                      url: clockOutPhotoUrl,
-                    ),
+                if (_hasAttendancePhoto(clockInPhoto, _clockInSignedPhotos) &&
+                    _hasAttendancePhoto(clockOutPhoto, _clockOutSignedPhotos))
+                  const SizedBox(height: 12),
+                if (_hasAttendancePhoto(clockOutPhoto, _clockOutSignedPhotos))
+                  _buildAttendancePhotoGroup(
+                    'Clock Out',
+                    file: clockOutPhoto,
+                    photos: _clockOutSignedPhotos,
                   ),
               ],
             )
@@ -1973,8 +1957,43 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     return _isBeforeScheduledEnd(clockOutTime!);
   }
 
-  bool _hasAttendancePhoto(File? file, String? url) {
-    return file != null || (url != null && url.trim().isNotEmpty);
+  bool _hasAttendancePhoto(File? file, List<AttendancePhoto> photos) {
+    return file != null || photos.isNotEmpty;
+  }
+
+  Widget _buildAttendancePhotoGroup(
+    String label, {
+    File? file,
+    required List<AttendancePhoto> photos,
+  }) {
+    final photoItems = <Widget>[
+      if (file != null)
+        _buildAttendancePhotoPreview(
+          label,
+          file: file,
+        ),
+      for (var index = 0; index < photos.length; index++)
+        _buildAttendancePhotoPreview(
+          photos.length == 1 ? label : '$label ${index + 1}',
+          url: photos[index].url,
+        ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth = photoItems.length == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 12) / 2;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: photoItems
+              .map((item) => SizedBox(width: tileWidth, child: item))
+              .toList(),
+        );
+      },
+    );
   }
 
   Widget _buildAttendancePhotoPreview(
@@ -2025,6 +2044,17 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     }
 
     if (url != null && url.trim().isNotEmpty) {
+      final bytes = _decodeImageBytes(url);
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => const Center(
+            child: Icon(Icons.broken_image_outlined, color: Colors.white38),
+          ),
+        );
+      }
+
       return Image.network(
         url,
         fit: fit,
@@ -2037,6 +2067,26 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     return const Center(
       child: Icon(Icons.image_not_supported_outlined, color: Colors.white38),
     );
+  }
+
+  Uint8List? _decodeImageBytes(String value) {
+    final trimmed = value.trim();
+    final commaIndex = trimmed.indexOf(',');
+    final base64Value =
+        trimmed.toLowerCase().startsWith('data:image') && commaIndex != -1
+            ? trimmed.substring(commaIndex + 1)
+            : trimmed;
+
+    if (base64Value.startsWith('http://') ||
+        base64Value.startsWith('https://')) {
+      return null;
+    }
+
+    try {
+      return base64Decode(base64Value);
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showAttendancePhotoDialog(

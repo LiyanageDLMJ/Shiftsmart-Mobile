@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shiftsmart/models/attendance.dart';
 import 'package:shiftsmart/models/job.dart';
 import 'package:shiftsmart/models/shift.dart';
 import 'package:shiftsmart/services/employee_service.dart';
@@ -419,10 +423,16 @@ class _ManagerShiftsViewState extends State<ManagerShiftsView> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               onPressed: () async {
-                final photos = await _attendanceService.fetchAttendancePhotos(
-                    response.employeeId, widget.shift.shiftId);
+                final photos =
+                    await _attendanceService.fetchAttendancePhotoLists(
+                        response.employeeId, widget.shift.shiftId);
 
-                if (photos.isEmpty) {
+                final clockInPhotos =
+                    photos['clockIn'] ?? const <AttendancePhoto>[];
+                final clockOutPhotos =
+                    photos['clockOut'] ?? const <AttendancePhoto>[];
+
+                if (clockInPhotos.isEmpty && clockOutPhotos.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                         content:
@@ -430,9 +440,6 @@ class _ManagerShiftsViewState extends State<ManagerShiftsView> {
                   );
                   return;
                 }
-
-                final clockInUrl = photos['clockIn'];
-                final clockOutUrl = photos['clockOut'];
 
                 showDialog(
                   context: context,
@@ -445,37 +452,33 @@ class _ManagerShiftsViewState extends State<ManagerShiftsView> {
                       fontWeight: FontWeight.bold,
                     ),
                     content: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          if (clockInUrl != null && clockInUrl.isNotEmpty) ...[
-                            const Text("Clock In",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(clockInUrl),
-                            ),
-                          ] else
-                            const Text("Clock In image not available",
-                                style: TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 20),
-                          if (clockOutUrl != null &&
-                              clockOutUrl.isNotEmpty) ...[
-                            const Text("Clock Out",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(clockOutUrl),
-                            ),
-                          ] else
-                            const Text("Clock Out image not available",
-                                style: TextStyle(color: Colors.white70)),
-                        ],
+                      child: SizedBox(
+                        width: _evidenceDialogWidth(context),
+                        child: Column(
+                          children: [
+                            if (clockInPhotos.isNotEmpty) ...[
+                              const Text("Clock In",
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              _buildEvidencePhotoGrid(clockInPhotos),
+                            ] else
+                              const Text("Clock In image not available",
+                                  style: TextStyle(color: Colors.white70)),
+                            const SizedBox(height: 20),
+                            if (clockOutPhotos.isNotEmpty) ...[
+                              const Text("Clock Out",
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              _buildEvidencePhotoGrid(clockOutPhotos),
+                            ] else
+                              const Text("Clock Out image not available",
+                                  style: TextStyle(color: Colors.white70)),
+                          ],
+                        ),
                       ),
                     ),
                     actions: [
@@ -496,6 +499,79 @@ class _ManagerShiftsViewState extends State<ManagerShiftsView> {
         ],
       ),
     );
+  }
+
+  Widget _buildEvidencePhotoGrid(List<AttendancePhoto> photos) {
+    final gridWidth = _evidenceDialogWidth(context);
+    final tileWidth = photos.length == 1 ? gridWidth : (gridWidth - 12) / 2;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: photos
+          .map((photo) => SizedBox(
+                width: tileWidth,
+                height: 150,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _buildEvidenceImage(photo.url),
+                ),
+              ))
+          .toList(),
+    );
+  }
+
+  double _evidenceDialogWidth(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    if (screenWidth < 360) return 240;
+    if (screenWidth < 520) return screenWidth - 96;
+    return 420;
+  }
+
+  Widget _buildEvidenceImage(String value) {
+    final bytes = _decodeImageBytes(value);
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _evidenceImageError(),
+      );
+    }
+
+    return Image.network(
+      value,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _evidenceImageError(),
+    );
+  }
+
+  Widget _evidenceImageError() {
+    return Container(
+      height: 140,
+      color: Colors.white10,
+      alignment: Alignment.center,
+      child: const Icon(Icons.broken_image, color: Colors.white38),
+    );
+  }
+
+  Uint8List? _decodeImageBytes(String value) {
+    final trimmed = value.trim();
+    final commaIndex = trimmed.indexOf(',');
+    final base64Value =
+        trimmed.toLowerCase().startsWith('data:image') && commaIndex != -1
+            ? trimmed.substring(commaIndex + 1)
+            : trimmed;
+
+    if (base64Value.startsWith('http://') ||
+        base64Value.startsWith('https://')) {
+      return null;
+    }
+
+    try {
+      return base64Decode(base64Value);
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {

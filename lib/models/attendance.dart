@@ -1,3 +1,36 @@
+class AttendancePhoto {
+  final String url;
+  final DateTime expiresAt;
+
+  const AttendancePhoto({
+    required this.url,
+    required this.expiresAt,
+  });
+
+  bool get isExpired {
+    final earlyExpiry = expiresAt.toUtc().subtract(const Duration(seconds: 30));
+    return DateTime.now().toUtc().isAfter(earlyExpiry);
+  }
+
+  factory AttendancePhoto.fromJson(Map<String, dynamic> json) {
+    final rawUrl =
+        json['url'] ?? json['Url'] ?? json['photoUrl'] ?? json['PhotoUrl'];
+    final rawExpiresAt = json['expiresAt'] ??
+        json['ExpiresAt'] ??
+        json['expiry'] ??
+        json['Expiry'];
+    final expiresAt = rawExpiresAt == null
+        ? DateTime.now().toUtc().add(const Duration(minutes: 10))
+        : DateTime.tryParse(rawExpiresAt.toString()) ??
+            DateTime.now().toUtc().add(const Duration(minutes: 10));
+
+    return AttendancePhoto(
+      url: rawUrl?.toString().trim() ?? '',
+      expiresAt: expiresAt,
+    );
+  }
+}
+
 class Attendance {
   final int attendanceId;
   final int employeeId;
@@ -36,9 +69,9 @@ class Attendance {
     this.emergencyReason = '',
     this.approvalStatus,
   })  : clockInPhotoUrls = clockInPhotoUrls ??
-            (clockInPhotoUrl.isNotEmpty ? [clockInPhotoUrl] : const []),
+            _splitPhotoValue(clockInPhotoUrl).toList(growable: false),
         clockOutPhotoUrls = clockOutPhotoUrls ??
-            (clockOutPhotoUrl.isNotEmpty ? [clockOutPhotoUrl] : const []);
+            _splitPhotoValue(clockOutPhotoUrl).toList(growable: false);
 
   factory Attendance.fromJson(Map<String, dynamic> json) {
     final clockInPhotos = _readPhotoUrls(json, const [
@@ -170,8 +203,19 @@ class Attendance {
       return;
     }
 
-    final url = value.toString().trim();
-    if (url.isEmpty || url.toLowerCase() == 'null') return;
-    urls.add(url);
+    urls.addAll(_splitPhotoValue(value.toString()));
+  }
+
+  static Iterable<String> _splitPhotoValue(String value) {
+    final trimmed = value.trim();
+    if (trimmed.toLowerCase().startsWith('data:image')) {
+      return trimmed.isEmpty ? const [] : [trimmed];
+    }
+
+    return trimmed.split(',').map((url) => url.trim()).where((url) =>
+        url.isNotEmpty &&
+        url.toLowerCase() != 'null' &&
+        url.toLowerCase() != 'undefined' &&
+        url.toLowerCase() != 'none');
   }
 }
