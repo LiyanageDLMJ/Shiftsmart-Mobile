@@ -30,6 +30,7 @@ class _ChatboxState extends State<Chatbox> {
   final ScrollController _scrollController = ScrollController();
 
   int _userId = 0;
+  late int _chatParticipantId;
   List<Message> _messages = [];
   bool _isLoading = true;
   bool _hasScrolledToLatest = false;
@@ -38,6 +39,7 @@ class _ChatboxState extends State<Chatbox> {
   @override
   void initState() {
     super.initState();
+    _chatParticipantId = widget.chatParticipantId;
     _getUserId();
     _timer = Timer.periodic(
       const Duration(seconds: 5),
@@ -65,23 +67,32 @@ class _ChatboxState extends State<Chatbox> {
     bool forceScrollToLatest = false,
     bool scrollOnNewMessage = false,
   }) async {
+    if (_chatParticipantId <= 0) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
     final previousLatest = _latestMessageKey(_messages);
-    final msgs = await _chatService.fetchMessages(widget.chatParticipantId);
+    final msgs = await _chatService.fetchMessages(_chatParticipantId);
+    final visibleMessages =
+        msgs.where((msg) => !_isStarterMessage(msg.text)).toList();
     if (!mounted) return;
 
-    final latest = _latestMessageKey(msgs);
-    final shouldScrollToLatest = msgs.isNotEmpty &&
+    final latest = _latestMessageKey(visibleMessages);
+    final shouldScrollToLatest = visibleMessages.isNotEmpty &&
         (forceScrollToLatest ||
             !_hasScrolledToLatest ||
             (scrollOnNewMessage && latest != previousLatest));
     final shouldAnimate = _hasScrolledToLatest || forceScrollToLatest;
 
     setState(() {
-      _messages = msgs;
+      _messages = visibleMessages;
       _isLoading = false;
     });
 
-    await _markMessagesSeen(msgs);
+    await _markMessagesSeen(visibleMessages);
 
     if (shouldScrollToLatest) {
       _hasScrolledToLatest = true;
@@ -104,7 +115,7 @@ class _ChatboxState extends State<Chatbox> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
-      'chat_seen_${_userId}_${widget.chatParticipantId}',
+      'chat_seen_${_userId}_$_chatParticipantId',
       latestSeen,
     );
   }
@@ -140,18 +151,42 @@ class _ChatboxState extends State<Chatbox> {
     });
   }
 
+  bool _isStarterMessage(String value) {
+    return value.trim().toLowerCase() == 'started a new chat';
+  }
+
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
     final text = _messageController.text;
     _messageController.clear();
 
-    final success = await _chatService.sendMessage(
-      chatParticipantId: widget.chatParticipantId,
-      senderId: _userId,
-      receiverId: widget.receiverId,
-      text: text,
-    );
+    var success = false;
+
+    if (_chatParticipantId > 0) {
+      success = await _chatService.sendMessage(
+        chatParticipantId: _chatParticipantId,
+        senderId: _userId,
+        receiverId: widget.receiverId,
+        text: text,
+      );
+    } else {
+      success = await _chatService.createChat(
+        senderId: _userId,
+        receiverId: widget.receiverId,
+        message: text,
+      );
+
+      if (success) {
+        final chats = await _chatService.fetchChatList();
+        for (final chat in chats) {
+          if (chat.partnerId == widget.receiverId && chat.chatId > 0) {
+            _chatParticipantId = chat.chatId;
+            break;
+          }
+        }
+      }
+    }
 
     if (success) {
       await _fetchMessages(forceScrollToLatest: true);
