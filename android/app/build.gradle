@@ -1,5 +1,6 @@
 plugins {
     id "com.android.application"
+    id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -27,7 +28,7 @@ if (!GOOGLE_MAPS_API_KEY) {
     }
 }
 
-// Hardcoded fallback – Android Maps Key
+// Hardcoded fallback â€“ Android Maps Key
 if (!GOOGLE_MAPS_API_KEY) {
     GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"
 }
@@ -51,7 +52,7 @@ android {
 
     defaultConfig {
         applicationId = "com.AIT_MOBILE.shiftsmart"
-        minSdkVersion = flutter.minSdkVersion // ✅ UPDATED: Recommended for Notification Support
+        minSdkVersion = flutter.minSdkVersion // âœ… UPDATED: Recommended for Notification Support
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

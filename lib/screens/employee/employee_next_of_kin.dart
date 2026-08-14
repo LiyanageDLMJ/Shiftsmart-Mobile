@@ -156,14 +156,14 @@ class _EmployeeNextOfKinScreenState extends State<EmployeeNextOfKinScreen> {
         return '$label: Relationship is required.';
       }
 
-      // Mobile required, Australian format
+      // Mobile required, international format from the country code selector.
       final phone =
           c.phoneController.text.trim().replaceAll(RegExp(r'[\s\-()]'), '');
       if (phone.isEmpty) {
         return '$label: Mobile Number is required.';
       }
-      if (!RegExp(r'^\+61\d{9}$').hasMatch(phone)) {
-        return '$label: Enter a valid mobile number (e.g. +61123456789).';
+      if (!RegExp(r'^\+?[1-9]\d{6,14}$').hasMatch(phone)) {
+        return '$label: Enter a valid mobile number (e.g. +94771234567).';
       }
 
       // Email required, valid format

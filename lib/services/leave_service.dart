@@ -285,9 +285,6 @@ class LeaveService {
     });
     final String url = uri.toString();
  
-    debugPrint(
-        "LeaveService: Fetching from $url (employeeId filter: $employeeId)");
- 
     try {
       final response = await _apiClient.get(
         url,
@@ -295,13 +292,8 @@ class LeaveService {
         showDialog: false,
       );
  
-      debugPrint("LeaveService: Status ${response.statusCode}");
- 
       if (response.statusCode == 200) {
         final rawList = _extractLeaveList(jsonDecode(response.body));
- 
-        debugPrint(
-            "LeaveService: Fetched ${rawList.length} total records.");
  
         final allRequests = rawList
             .whereType<Map>()
@@ -313,8 +305,6 @@ class LeaveService {
         if (employeeId != null) {
           final filtered =
               allRequests.where((r) => r.employeeId == employeeId).toList();
-          debugPrint(
-              "LeaveService: Filtered to ${filtered.length} records for employee $employeeId.");
           return filtered;
         }
  
@@ -412,8 +402,6 @@ class LeaveService {
     });
     final String url = uri.toString();
  
-    debugPrint("LeaveService: Fetching my leaves from $url");
- 
     try {
       final response = await _apiClient.get(
         url,
@@ -421,13 +409,8 @@ class LeaveService {
         showDialog: false,
       );
  
-      debugPrint("LeaveService: Status ${response.statusCode}");
- 
       if (response.statusCode == 200) {
         final rawList = _extractLeaveList(jsonDecode(response.body));
- 
-        debugPrint(
-            "LeaveService: Fetched ${rawList.length} records from 'my' endpoint.");
         final requests = rawList
             .whereType<Map>()
             .map((item) => LeaveRequest.fromJson(Map<String, dynamic>.from(item)))

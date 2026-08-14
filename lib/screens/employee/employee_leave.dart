@@ -897,6 +897,7 @@ class _EmployeeleaveState extends State<Employeeleave> {
                   'StartDate': r.startDate,
                   'EndDate': r.endDate,
                   'Reason': r.reason,
+                  'RejectionReason': r.rejectionReason,
                   'Status': r.status,
                   'RequestedAt': r.requestedAt,
                 })
@@ -916,6 +917,7 @@ class _EmployeeleaveState extends State<Employeeleave> {
       case 'approved':
         return const Color(0xFF4CAF50);
       case 'rejected':
+      case 'denied':
         return const Color(0xFFEF5350);
       default:
         return const Color(0xFFFFC107);
@@ -927,6 +929,7 @@ class _EmployeeleaveState extends State<Employeeleave> {
       case 'approved':
         return const Color(0xFF4CAF50).withValues(alpha: 0.15);
       case 'rejected':
+      case 'denied':
         return const Color(0xFFEF5350).withValues(alpha: 0.15);
       default:
         return const Color(0xFFFFC107).withValues(alpha: 0.15);
@@ -938,6 +941,7 @@ class _EmployeeleaveState extends State<Employeeleave> {
       case 'approved':
         return Icons.check_circle_outline;
       case 'rejected':
+      case 'denied':
         return Icons.cancel_outlined;
       default:
         return Icons.hourglass_bottom_rounded;
@@ -949,10 +953,16 @@ class _EmployeeleaveState extends State<Employeeleave> {
       case 'approved':
         return 'Approved';
       case 'rejected':
+      case 'denied':
         return 'Rejected';
       default:
         return 'Awaiting Approval';
     }
+  }
+
+  bool _isRejectedStatus(String status) {
+    final lower = status.toLowerCase();
+    return lower == 'rejected' || lower == 'denied';
   }
  
   Color _leaveTypeColor(String type) {
@@ -1031,6 +1041,7 @@ class _EmployeeleaveState extends State<Employeeleave> {
     final startDate = leave['StartDate'] as DateTime;
     final endDate = leave['EndDate'] as DateTime;
     final days = endDate.difference(startDate).inDays + 1;
+    final rejectionReason = (leave['RejectionReason'] ?? '').toString().trim();
  
     showModalBottomSheet(
       context: context,
@@ -1129,6 +1140,14 @@ class _EmployeeleaveState extends State<Employeeleave> {
             const SizedBox(height: 12),
             _detailRow(
                 Icons.notes_outlined, 'Reason', leave['Reason'] ?? '—'),
+            if (_isRejectedStatus(status)) ...[
+              const SizedBox(height: 12),
+              _detailRow(
+                Icons.report_problem_outlined,
+                'Rejection Reason',
+                rejectionReason.isEmpty ? 'Not provided' : rejectionReason,
+              ),
+            ],
             const SizedBox(height: 28),
             Row(
               children: [

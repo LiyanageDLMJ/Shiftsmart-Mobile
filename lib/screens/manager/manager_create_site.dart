@@ -361,7 +361,7 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
           0,
           20,
           0,
-          keyboardInset + 20,
+          keyboardInset + 120,
         ),
         children: [
           ManagerSectionPanel(
@@ -438,7 +438,7 @@ class _ManagercreatesiteState extends State<Managercreatesite> {
 
     return Scaffold(
         drawer: const Sidenav(),
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: true,
         backgroundColor: ManagerScreenStyle.pageBg,
         appBar: const Uppernavbar(
           showBackButton: true,

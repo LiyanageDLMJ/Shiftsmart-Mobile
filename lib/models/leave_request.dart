@@ -71,10 +71,7 @@ class LeaveRequest {
           DateTime.now(),
       reason: parseString(read(const ['Reason', 'reason'])),
       rejectionReason: parseString(read(const [
-        'RejectionReason',
-        'rejectionReason',
-        'RejectReason',
-        'rejectReason',
+        'RejectionReason'
       ])),
       status: parseString(read(const ['Status', 'status']), fallback: 'Pending'),
       requestedAt: parseServerDateTime(

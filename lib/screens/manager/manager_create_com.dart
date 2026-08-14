@@ -194,7 +194,7 @@ class _ManagercreatecomState extends State<Managercreatecom> {
 
     return Scaffold(
       drawer: const Sidenav(),
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: ManagerScreenStyle.pageBg,
       appBar: const Uppernavbar(
         showBackButton: true,
@@ -213,7 +213,7 @@ class _ManagercreatecomState extends State<Managercreatecom> {
                   0,
                   20,
                   0,
-                  keyboardInset + 20,
+                  keyboardInset + 120,
                 ),
                 children: [
                   ManagerSectionPanel(
