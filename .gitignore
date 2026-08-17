@@ -59,3 +59,5 @@ ios/GoogleService-Info.plist
 ios/Runner/GoogleService-Info.plist
 .env.*
 !.env.example
+android/key.properties
+android/upload-keystore.jks
