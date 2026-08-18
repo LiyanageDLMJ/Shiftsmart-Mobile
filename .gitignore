@@ -61,3 +61,4 @@ ios/Runner/GoogleService-Info.plist
 !.env.example
 android/key.properties
 android/upload-keystore.jks
+ios/Flutter/Secrets.xcconfig
