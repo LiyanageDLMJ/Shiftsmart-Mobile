@@ -5,6 +5,7 @@ import 'package:shiftsmart/models/emergency_contact_model.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
 import 'package:shiftsmart/services/emergency_contact_service.dart';
 import 'package:shiftsmart/services/profile_service.dart';
+import 'package:shiftsmart/utils/country_dial_codes.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/utils/profile_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
@@ -148,8 +149,13 @@ class _ManagerNextOfKinScreenState extends State<ManagerNextOfKinScreen> {
 
       final phone =
           c.phoneController.text.trim().replaceAll(RegExp(r'[\s\-()]'), '');
-      if (phone.isNotEmpty && !RegExp(r'^\+?[1-9]\d{6,14}$').hasMatch(phone)) {
-        return '$label: Enter a valid phone number (e.g. +94771234567).';
+      final phoneError = validateInternationalPhoneNumber(
+        phone,
+        requiredMessage: '$label: Mobile Number is required.',
+        invalidMessage: '$label: Enter a valid mobile number.',
+      );
+      if (phoneError != null) {
+        return phoneError;
       }
 
       final email = c.emailController.text.trim();
@@ -442,6 +448,13 @@ class _ManagerNextOfKinScreenState extends State<ManagerNextOfKinScreen> {
           controller: c.phoneController,
           labelFontSize: 14,
           fillColor: Colors.white.withValues(alpha: 0.15),
+          validator: (value) => validateInternationalPhoneNumber(
+            value,
+            requiredMessage:
+                'Next of Kin ${index + 1}: Mobile Number is required.',
+            invalidMessage:
+                'Next of Kin ${index + 1}: Enter a valid mobile number.',
+          ),
         ),
         _buildField('Email', c.emailController,
             keyboardType: TextInputType.emailAddress),

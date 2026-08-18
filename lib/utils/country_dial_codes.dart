@@ -10,6 +10,34 @@ class CountryDialCode {
   });
 }
 
+class PhoneLengthRule {
+  final int min;
+  final int max;
+
+  const PhoneLengthRule({required this.min, required this.max});
+}
+
+const PhoneLengthRule _defaultPhoneLengthRule =
+    PhoneLengthRule(min: 9, max: 15);
+
+const Map<String, PhoneLengthRule> _phoneLengthRulesByCountryName = {
+  'Australia': PhoneLengthRule(min: 9, max: 9),
+  'United Arab Emirates': PhoneLengthRule(min: 9, max: 9),
+  'Canada': PhoneLengthRule(min: 10, max: 10),
+  'Germany': PhoneLengthRule(min: 10, max: 11),
+  'France': PhoneLengthRule(min: 9, max: 9),
+  'United Kingdom': PhoneLengthRule(min: 10, max: 11),
+  'Ireland': PhoneLengthRule(min: 9, max: 10),
+  'India': PhoneLengthRule(min: 10, max: 10),
+  'Sri Lanka': PhoneLengthRule(min: 9, max: 9),
+  'Malaysia': PhoneLengthRule(min: 9, max: 10),
+  'New Zealand': PhoneLengthRule(min: 8, max: 9),
+  'Pakistan': PhoneLengthRule(min: 10, max: 10),
+  'Singapore': PhoneLengthRule(min: 8, max: 8),
+  'United States': PhoneLengthRule(min: 10, max: 10),
+  'South Africa': PhoneLengthRule(min: 9, max: 9),
+};
+
 const List<CountryDialCode> countryDialCodes = [
   CountryDialCode(name: 'Australia', dialCode: '+61', flag: '🇦🇺'),
   CountryDialCode(name: 'Sri Lanka', dialCode: '+94', flag: '🇱🇰'),
@@ -281,3 +309,93 @@ const List<CountryDialCode> countryDialCodes = [
   CountryDialCode(name: 'Zambia', dialCode: '+260', flag: '🇿🇲'),
   CountryDialCode(name: 'Zimbabwe', dialCode: '+263', flag: '🇿🇼'),
 ];
+
+CountryDialCode? detectCountryFromPhoneNumber(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty || !normalized.startsWith('+')) return null;
+
+  final sorted = [...countryDialCodes]
+    ..sort((a, b) => b.dialCode.length.compareTo(a.dialCode.length));
+
+  for (final country in sorted) {
+    if (normalized.startsWith(country.dialCode)) {
+      return country;
+    }
+  }
+  return null;
+}
+
+PhoneLengthRule phoneLengthRuleForCountryName(String? countryName) {
+  if (countryName == null || countryName.trim().isEmpty) {
+    return _defaultPhoneLengthRule;
+  }
+  return _phoneLengthRulesByCountryName[countryName.trim()] ??
+      _defaultPhoneLengthRule;
+}
+
+String _normalizeNationalDigits(String digits) {
+  final trimmed = digits.replaceAll(RegExp(r'^0+'), '');
+  return trimmed.isEmpty ? digits : trimmed;
+}
+
+String? validateNationalPhoneNumber(
+  String? value, {
+  required String? countryName,
+  bool optional = false,
+  String requiredMessage = 'Please enter a mobile number.',
+  String invalidMessage = 'Please enter a valid mobile number.',
+}) {
+  final rawDigits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+  if (rawDigits.isEmpty) return optional ? null : requiredMessage;
+
+  final phoneDigits = _normalizeNationalDigits(rawDigits);
+  final rule = phoneLengthRuleForCountryName(countryName);
+
+  if (phoneDigits.length < rule.min || phoneDigits.length > rule.max) {
+    if (countryName != null && countryName.trim().isNotEmpty) {
+      return 'Please enter a valid ${countryName.trim()} mobile number.';
+    }
+    return invalidMessage;
+  }
+
+  return null;
+}
+
+String? validateInternationalPhoneNumber(
+  String? value, {
+  String? countryName,
+  bool optional = false,
+  String requiredMessage = 'Please enter a mobile number.',
+  String invalidMessage = 'Please enter a valid mobile number.',
+}) {
+  final phone = (value ?? '').trim().replaceAll(RegExp(r'[\s\-()]'), '');
+  if (phone.isEmpty) return optional ? null : requiredMessage;
+
+  final detectedCountry = detectCountryFromPhoneNumber(phone);
+  final effectiveCountryName =
+      (countryName != null && countryName.trim().isNotEmpty)
+          ? countryName.trim()
+          : detectedCountry?.name;
+
+  final allDigits = phone.replaceAll(RegExp(r'\D'), '');
+  var nationalDigits = allDigits;
+
+  if (detectedCountry != null) {
+    final dialDigits = detectedCountry.dialCode.replaceAll(RegExp(r'\D'), '');
+    if (allDigits.startsWith(dialDigits)) {
+      nationalDigits = allDigits.substring(dialDigits.length);
+    }
+  }
+
+  nationalDigits = _normalizeNationalDigits(nationalDigits);
+
+  final rule = phoneLengthRuleForCountryName(effectiveCountryName);
+  if (nationalDigits.length < rule.min || nationalDigits.length > rule.max) {
+    if (effectiveCountryName != null && effectiveCountryName.isNotEmpty) {
+      return 'Please enter a valid $effectiveCountryName mobile number.';
+    }
+    return invalidMessage;
+  }
+
+  return null;
+}

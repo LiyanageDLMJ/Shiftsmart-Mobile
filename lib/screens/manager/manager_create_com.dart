@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shiftsmart/models/company.dart';
 import 'package:shiftsmart/services/company_service.dart';
+import 'package:shiftsmart/utils/country_dial_codes.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/utils/google_maps_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
+import 'package:shiftsmart/widgets/country_code_phone_field.dart';
 import 'package:shiftsmart/widgets/manager_screen_style.dart';
 import 'package:shiftsmart/widgets/sidenav.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
@@ -34,6 +36,7 @@ class _ManagercreatecomState extends State<Managercreatecom> {
   String tokenForSession = const Uuid().v4();
   List<Map<String, String>> _suggestions = [];
   bool _isSaving = false;
+  String? _phoneError;
 
   @override
   void initState() {
@@ -60,8 +63,7 @@ class _ManagercreatecomState extends State<Managercreatecom> {
     final key = GoogleMapsHelper.apiKey;
     final endpoint = dotenv.env['GOOGLE_PLACES_AUTOCOMPLETE_URL'] ?? '';
     if (endpoint.isEmpty) return [];
-    final url =
-        "$endpoint?input=$input&key=$key&sessiontoken=$tokenForSession";
+    final url = "$endpoint?input=$input&key=$key&sessiontoken=$tokenForSession";
 
     try {
       final response = await http.get(
@@ -107,7 +109,6 @@ class _ManagercreatecomState extends State<Managercreatecom> {
     }
 
     final textOnlyRegex = RegExp(r'^[A-Za-z ]+$');
-    final numberOnlyRegex = RegExp(r'^[0-9]+$');
 
     if (!textOnlyRegex.hasMatch(name)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,17 +119,23 @@ class _ManagercreatecomState extends State<Managercreatecom> {
 
     if (!textOnlyRegex.hasMatch(contactPerson)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Contact person can contain letters only")),
+        const SnackBar(
+            content: Text("Contact person can contain letters only")),
       );
       return;
     }
 
-    if (!numberOnlyRegex.hasMatch(contactNumber)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Contact number can contain numbers only")),
-      );
+    final phoneError = validateInternationalPhoneNumber(
+      contactNumber,
+      requiredMessage: 'Contact Number is required.',
+      invalidMessage: 'Please enter a valid mobile number.',
+    );
+    if (phoneError != null) {
+      setState(() => _phoneError = phoneError);
       return;
     }
+
+    setState(() => _phoneError = null);
 
     setState(() => _isSaving = true);
 
@@ -227,7 +234,8 @@ class _ManagercreatecomState extends State<Managercreatecom> {
                           _nameController,
                           required: true,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Za-z ]')),
                           ],
                         ),
                         const SizedBox(height: 18),
@@ -236,18 +244,27 @@ class _ManagercreatecomState extends State<Managercreatecom> {
                           _personController,
                           required: true,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z ]')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Za-z ]')),
                           ],
                         ),
                         const SizedBox(height: 18),
-                        _buildTextField(
-                          "Contact Number",
-                          _phoneController,
-                          keyboardType: TextInputType.phone,
-                          required: true,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
+                        CountryCodePhoneField(
+                          label: 'Contact Number',
+                          controller: _phoneController,
+                          errorText: _phoneError,
+                          validator: (value) =>
+                              validateInternationalPhoneNumber(
+                            value,
+                            requiredMessage: 'Contact Number is required.',
+                            invalidMessage:
+                                'Please enter a valid mobile number.',
+                          ),
+                          onChanged: (_) {
+                            if (_phoneError != null) {
+                              setState(() => _phoneError = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 18),
                         _buildAddressField(),

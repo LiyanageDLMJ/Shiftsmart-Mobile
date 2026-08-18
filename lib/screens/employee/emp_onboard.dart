@@ -375,14 +375,16 @@ class _EmponboardState extends State<Emponboard> {
   String? _validatePhoneNumber(
     String? value, {
     required String label,
+    String? countryName,
     bool optional = false,
   }) {
-    final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return optional ? null : '$label is required';
-    if (digits.length < 7 || digits.length > 15) {
-      return '$label must be 7-15 digits';
-    }
-    return null;
+    return validateNationalPhoneNumber(
+      value,
+      countryName: countryName,
+      optional: optional,
+      requiredMessage: '$label is required',
+      invalidMessage: 'Please enter a valid $label',
+    );
   }
 
   String? _validateAge(String? dateStr) {
@@ -1776,6 +1778,7 @@ class _EmponboardState extends State<Emponboard> {
           validator: (v) => _validatePhoneNumber(
             v,
             label: 'Mobile',
+            countryName: _selectedNokCountry.name,
             optional: !_shouldValidateNokFields,
           ),
           readOnly: !canEditNok,
@@ -1818,8 +1821,11 @@ class _EmponboardState extends State<Emponboard> {
                     return;
                   }
 
-                  if (_validatePhoneNumber(_nokPhoneCtrl.text,
-                          label: 'Mobile') !=
+                  if (_validatePhoneNumber(
+                        _nokPhoneCtrl.text,
+                        label: 'Mobile',
+                        countryName: _selectedNokCountry.name,
+                      ) !=
                       null) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                         content: Text("Please enter a valid mobile number."),
@@ -2217,7 +2223,11 @@ class _EmponboardState extends State<Emponboard> {
                     validator: readOnly
                         ? null
                         : validator ??
-                            (v) => _validatePhoneNumber(v, label: label),
+                            (v) => _validatePhoneNumber(
+                                  v,
+                                  label: label,
+                                  countryName: selectedCountry.name,
+                                ),
                     decoration: InputDecoration(
                       hintText: "Phone number",
                       hintStyle: const TextStyle(color: Colors.white54),

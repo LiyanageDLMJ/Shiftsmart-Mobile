@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
 import 'package:shiftsmart/services/profile_service.dart';
+import 'package:shiftsmart/utils/country_dial_codes.dart';
 import 'package:shiftsmart/utils/fullscreen_helper.dart';
 import 'package:shiftsmart/utils/profile_helper.dart';
 import 'package:shiftsmart/widgets/background.dart';
@@ -173,10 +174,14 @@ class _ManagerProfileState extends State<ManagerProfile> {
 
       final phone =
           _phoneController.text.trim().replaceAll(RegExp(r'[\s\-()]'), '');
-      if (phone.isEmpty) {
-        errors['phone'] = 'Phone Number is required.';
-      } else if (!RegExp(r'^\+?[1-9]\d{6,14}$').hasMatch(phone))
-        errors['phone'] = 'Use international format, e.g. +94771234567';
+      final phoneError = validateInternationalPhoneNumber(
+        phone,
+        requiredMessage: 'Phone Number is required.',
+        invalidMessage: 'Please enter a valid mobile number.',
+      );
+      if (phoneError != null) {
+        errors['phone'] = phoneError;
+      }
 
       final email = _emailController.text.trim();
       if (email.isEmpty) {
@@ -405,6 +410,11 @@ class _ManagerProfileState extends State<ManagerProfile> {
           label: "Phone Number",
           controller: _phoneController,
           errorText: _fieldErrors['phone'],
+          validator: (value) => validateInternationalPhoneNumber(
+            value,
+            requiredMessage: 'Phone Number is required.',
+            invalidMessage: 'Please enter a valid mobile number.',
+          ),
           onChanged: (_) {
             if (_fieldErrors.containsKey('phone')) {
               setState(() => _fieldErrors.remove('phone'));

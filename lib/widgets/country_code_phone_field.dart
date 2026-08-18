@@ -5,6 +5,7 @@ class CountryCodePhoneField extends StatefulWidget {
   final String label;
   final TextEditingController controller;
   final String? errorText;
+  final String? Function(String?)? validator;
   final double labelFontSize;
   final Color fillColor;
   final ValueChanged<String>? onChanged;
@@ -14,6 +15,7 @@ class CountryCodePhoneField extends StatefulWidget {
     required this.label,
     required this.controller,
     this.errorText,
+    this.validator,
     this.labelFontSize = 16,
     this.fillColor = const Color(0x33FFFFFF),
     this.onChanged,
@@ -37,16 +39,19 @@ class _CountryCodePhoneFieldState extends State<CountryCodePhoneField> {
 
   final LayerLink _layerLink = LayerLink();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _phoneFocusNode = FocusNode();
   late _CountryCode _selectedCountry;
   late final TextEditingController _localNumberController;
   OverlayEntry? _dropdownEntry;
   bool _updatingExternalController = false;
+  String? _localErrorText;
 
   @override
   void initState() {
     super.initState();
     _selectedCountry = _countries.first;
     _localNumberController = TextEditingController();
+    _phoneFocusNode.addListener(_handleFocusChange);
     _syncFromExternalController();
   }
 
@@ -64,9 +69,27 @@ class _CountryCodePhoneFieldState extends State<CountryCodePhoneField> {
   @override
   void dispose() {
     _removeDropdown();
+    _phoneFocusNode.removeListener(_handleFocusChange);
+    _phoneFocusNode.dispose();
     _searchController.dispose();
     _localNumberController.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_phoneFocusNode.hasFocus) {
+      _runValidation();
+    }
+  }
+
+  void _runValidation() {
+    if (widget.validator == null) return;
+    final error = widget.validator!(widget.controller.text);
+    if (error != _localErrorText && mounted) {
+      setState(() => _localErrorText = error);
+    } else {
+      _localErrorText = error;
+    }
   }
 
   void _syncFromExternalController() {
@@ -119,6 +142,11 @@ class _CountryCodePhoneFieldState extends State<CountryCodePhoneField> {
     final fullNumber = _composeNumber(localNumber);
     widget.controller.text = fullNumber;
     _updatingExternalController = false;
+    if (_localErrorText != null && mounted) {
+      setState(() => _localErrorText = null);
+    } else {
+      _localErrorText = null;
+    }
     widget.onChanged?.call(fullNumber);
   }
 
@@ -179,7 +207,7 @@ class _CountryCodePhoneFieldState extends State<CountryCodePhoneField> {
 
   @override
   Widget build(BuildContext context) {
-    final error = widget.errorText;
+    final error = widget.errorText ?? _localErrorText;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -240,6 +268,7 @@ class _CountryCodePhoneFieldState extends State<CountryCodePhoneField> {
                         ),
                         child: TextField(
                           controller: _localNumberController,
+                          focusNode: _phoneFocusNode,
                           keyboardType: TextInputType.phone,
                           style: const TextStyle(
                             color: Colors.white,

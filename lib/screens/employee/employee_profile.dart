@@ -372,10 +372,14 @@ class _EmployeeProfileState extends State<EmployeeProfile> {
 
       final phone =
           _phoneController.text.trim().replaceAll(RegExp(r'[\s\-()]'), '');
-      if (phone.isEmpty) {
-        errors['phone'] = 'Phone Number is required.';
-      } else if (!RegExp(r'^\+?[1-9]\d{6,14}$').hasMatch(phone))
-        errors['phone'] = 'Use international format, e.g. +94771234567';
+      final phoneError = validateInternationalPhoneNumber(
+        phone,
+        requiredMessage: 'Phone Number is required.',
+        invalidMessage: 'Please enter a valid mobile number.',
+      );
+      if (phoneError != null) {
+        errors['phone'] = phoneError;
+      }
 
       final dob = _dateController.text.trim();
       if (dob.isEmpty) {
@@ -626,6 +630,11 @@ class _EmployeeProfileState extends State<EmployeeProfile> {
           label: "Phone Number",
           controller: _phoneController,
           errorText: _fieldErrors['phone'],
+          validator: (value) => validateInternationalPhoneNumber(
+            value,
+            requiredMessage: 'Phone Number is required.',
+            invalidMessage: 'Please enter a valid mobile number.',
+          ),
           onChanged: (_) {
             if (_fieldErrors.containsKey('phone')) {
               setState(() => _fieldErrors.remove('phone'));
