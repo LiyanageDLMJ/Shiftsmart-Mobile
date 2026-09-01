@@ -1149,45 +1149,22 @@ class _EmployeeleaveState extends State<Employeeleave> {
               ),
             ],
             const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _deleteLeave(leave);
-                    },
-                    icon: const Icon(Icons.delete_outline,
-                        color: Color(0xFFEF5350), size: 18),
-                    label: const Text('Delete',
-                        style: TextStyle(color: Color(0xFFEF5350))),
-                    style: OutlinedButton.styleFrom(
-                      side:
-                          const BorderSide(color: Color(0xFFEF5350)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                    ),
+            Center(
+              child: SizedBox(
+                width: 220,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Close'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2A3447),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 18),
-                    label: const Text('Close'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2A3447),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
             SizedBox(
                 height:

@@ -25,7 +25,7 @@ DateTime? parseServerDateTime(dynamic value) {
   final hasTimezone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(cleaned);
   final parsedIso = DateTime.tryParse(cleaned);
   if (parsedIso != null) {
-    return hasTimezone ? parsedIso : _asUtcWallClock(parsedIso);
+    return hasTimezone ? parsedIso : _asLocalWallClock(parsedIso);
   }
 
   final patterns = [
@@ -47,7 +47,7 @@ DateTime? parseServerDateTime(dynamic value) {
     try {
       final parseAsUtc = hasTimezone || pattern.contains("'Z'");
       final dt = DateFormat(pattern).parseLoose(cleaned, parseAsUtc);
-      return parseAsUtc ? dt : _asUtcWallClock(dt);
+      return parseAsUtc ? dt : _asLocalWallClock(dt);
     } catch (_) {
       continue;
     }
@@ -82,7 +82,7 @@ DateTime? parseChatDateTime(dynamic value) {
   final hasTimezone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(cleaned);
   final parsedIso = DateTime.tryParse(cleaned);
   if (parsedIso != null) {
-    return hasTimezone ? parsedIso : _asUtcWallClock(parsedIso);
+    return hasTimezone ? parsedIso : _asLocalWallClock(parsedIso);
   }
 
   final patterns = [
@@ -114,7 +114,7 @@ DateTime? parseChatDateTime(dynamic value) {
     try {
       final parseAsUtc = hasTimezone || pattern.contains("'Z'");
       final parsed = DateFormat(pattern).parseLoose(cleaned, parseAsUtc);
-      return parseAsUtc ? parsed : _asUtcWallClock(parsed);
+      return parseAsUtc ? parsed : _asLocalWallClock(parsed);
     } catch (_) {
       continue;
     }
@@ -123,8 +123,8 @@ DateTime? parseChatDateTime(dynamic value) {
   return null;
 }
 
-DateTime _asUtcWallClock(DateTime value) {
-  return DateTime.utc(
+DateTime _asLocalWallClock(DateTime value) {
+  return DateTime(
     value.year,
     value.month,
     value.day,
