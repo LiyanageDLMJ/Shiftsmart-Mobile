@@ -12,16 +12,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_client.dart';
 
 class NotificationService {
-  static const String _defaultRegisterDeviceKey =
-      '';
-  static const String _defaultFirebaseProjectId = 'shift-smart-a34cb';
+  static const String _defaultRegisterDeviceKey = '';
+  static const String _defaultFirebaseProjectId = 'shiftsmart-bccd2';
   static const MethodChannel _nativePushChannel =
       MethodChannel('shiftsmart/native_push');
 
   FirebaseMessaging get _firebaseMessaging => FirebaseMessaging.instance;
   final ApiClient _apiClient = ApiClient();
   static bool _listenersConfigured = false;
+  static bool _tokenRefreshListenerConfigured = false;
   static bool _deferredRegistrationInProgress = false;
+  static int? _registeredEmployeeId;
+  static String? _registeredTag;
 
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
@@ -87,6 +89,8 @@ class NotificationService {
         return;
       }
 
+      debugPrint("Logged-in employee id for push registration: $employeeId");
+
       if (!_isFirebaseProjectAligned()) {
         return;
       }
@@ -94,6 +98,9 @@ class NotificationService {
       if (employeeId == 0) {
         debugPrint("Device registration skipped for guest session.");
       } else {
+        _registeredEmployeeId = employeeId;
+        _registeredTag = userTag;
+        _configureTokenRefreshListener();
         await _registerCurrentDevice(
           employeeId: employeeId,
           tag: userTag,
@@ -125,22 +132,22 @@ class NotificationService {
             body =
                 "Your leave request is ${message.data['status'] ?? message.data['Status']}";
           } else if (message.data.containsKey('type')) {
-  final type = message.data['type']?.toString();
-  title = _titleForMessageType(type);
+            final type = message.data['type']?.toString();
+            title = _titleForMessageType(type);
 
-  if (type == 'shift_assignment') {
-    body = message.data['body'] ??
-        message.data['message'] ??
-        message.data['details'] ??
-        message.data['shiftDetails'] ??
-        'You have been assigned a new shift.';
-  } else {
-    body = message.data['body'] ??
-        message.data['message'] ??
-        message.data['details'] ??
-        message.data['shiftDetails'];
-  }
-}
+            if (type == 'shift_assignment') {
+              body = message.data['body'] ??
+                  message.data['message'] ??
+                  message.data['details'] ??
+                  message.data['shiftDetails'] ??
+                  'You have been assigned a new shift.';
+            } else {
+              body = message.data['body'] ??
+                  message.data['message'] ??
+                  message.data['details'] ??
+                  message.data['shiftDetails'];
+            }
+          }
 
           if (title != null && body != null) {
             _localNotifications.show(
@@ -197,6 +204,9 @@ class NotificationService {
         "Platform=$_registrationPlatform, Tag=$tag, DeviceTokenPresent=${token.isNotEmpty}",
       );
       final response = await _apiClient.post(url, body: body, useAuth: true);
+
+      debugPrint("RegisterDevice API status code: ${response.statusCode}");
+      debugPrint("RegisterDevice API response: ${response.body}");
 
       if (response.statusCode == 200) {
         debugPrint("Device registered successfully");
@@ -539,6 +549,7 @@ class NotificationService {
 
     if (expectedFirebaseProjectId.isEmpty ||
         actualProjectId == expectedFirebaseProjectId) {
+      debugPrint("Firebase project id is aligned for push registration.");
       return true;
     }
 
@@ -550,6 +561,33 @@ class NotificationService {
   }
 
   String get _registrationPlatform => 'fcm';
+
+  void _configureTokenRefreshListener() {
+    if (_tokenRefreshListenerConfigured) return;
+    _tokenRefreshListenerConfigured = true;
+
+    _firebaseMessaging.onTokenRefresh.listen((newToken) async {
+      final employeeId = _registeredEmployeeId;
+      final tag = _registeredTag;
+
+      debugPrint(
+        "FCM token refreshed. Token present: ${newToken.isNotEmpty}",
+      );
+
+      if (employeeId == null || employeeId == 0 || tag == null) {
+        debugPrint(
+          "RegisterDevice not called after token refresh: employee context is missing.",
+        );
+        return;
+      }
+
+      await registerDeviceTokenToBackend(
+        token: newToken,
+        employeeId: employeeId,
+        tag: tag,
+      );
+    });
+  }
 
   Future<void> _registerCurrentDevice({
     required int employeeId,
@@ -565,7 +603,8 @@ class NotificationService {
     }
 
     debugPrint(
-      "Push token ready for $_registrationPlatform registration.",
+      "Push token ready for $_registrationPlatform registration. "
+      "FCM token present: ${token.isNotEmpty}",
     );
     await registerDeviceTokenToBackend(
       token: token,
@@ -611,6 +650,7 @@ class NotificationService {
     if (Platform.isIOS || Platform.isMacOS) {
       final apnsToken =
           await _getApnsTokenForRegistration(maxAttempts: maxAttempts);
+      debugPrint("APNS token ready/not ready: ${apnsToken != null}");
       if (apnsToken == null) return null;
     }
 
@@ -624,6 +664,7 @@ class NotificationService {
         debugPrint("RegisterDevice not called: FCM token is null.");
         return null;
       }
+      debugPrint("FCM token present/not present: true");
       return token;
     } on FirebaseException catch (e) {
       debugPrint(
