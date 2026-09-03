@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import MSAL
 import GoogleMaps // 1. Ensure this is imported
+import FirebaseMessaging
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -91,7 +92,8 @@ import GoogleMaps // 1. Ensure this is imported
   ) {
     let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
     apnsTokenString = token
-    NSLog("APNS token registered: \(token)")
+    Messaging.messaging().apnsToken = deviceToken
+    NSLog("APNS token registered.")
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 
