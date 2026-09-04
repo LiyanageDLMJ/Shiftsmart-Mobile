@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -52,7 +53,7 @@ class Employeeshiftview extends StatefulWidget {
 class _EmployeeshiftviewState extends State<Employeeshiftview> {
   List<Map<String, DateTime>> breaks = [];
   Map<String, dynamic>? shiftDetails;
-  StreamSubscription<Position>? _positionStreamSubscription;
+  Timer? _attendanceRefreshTimer;
   DateTime? currentBreakStart;
   Timer? _breakTicker;
   Duration _activeBreakElapsed = Duration.zero;
@@ -70,6 +71,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   int? attendanceId;
   Site? currentSite;
   bool isLoading = false;
+  bool _isAttendanceRefreshInProgress = false;
+  bool _isLocationTrackingActive = false;
 
   // New Variables
   String myStatus = "Pending";
@@ -80,8 +83,6 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   final SiteService _siteService = SiteService();
   final AttendanceService _attendanceService = AttendanceService();
   final ShiftService _shiftService = ShiftService();
-  final LocationService _locationService = RealLocationService();
-
   final Color green = const Color.fromARGB(255, 1, 126, 42);
   static const Duration networkTimeout = Duration(seconds: 30);
 
@@ -119,6 +120,15 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   String _activeBreakTimeText() {
     if (currentBreakStart == null) return 'Time: 00:00:00';
     return 'Time: ${_formatBreakDuration(_activeBreakElapsed)}';
+  }
+
+  bool get _hasActiveAttendance => clockInTime != null && clockOutTime == null;
+
+  String _cleanErrorMessage(Object error) {
+    final message = error.toString();
+    return message.startsWith('Exception: ')
+        ? message.substring('Exception: '.length)
+        : message;
   }
 
   String _formatDeviceLocalTime(DateTime time) {
@@ -225,6 +235,81 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     return match != null ? double.tryParse(match.group(0)!) : null;
   }
 
+  List<List<double>> _parsePolygonCoordinates(String? rawCoordinates) {
+    final raw = rawCoordinates?.trim() ?? '';
+    if (raw.isEmpty) return const [];
+
+    final points = <List<double>>[];
+
+    void addPoint(dynamic latValue, dynamic lngValue) {
+      final lat = _parseCoordinate(latValue?.toString());
+      final lng = _parseCoordinate(lngValue?.toString());
+      if (lat != null && lng != null) {
+        points.add([lat, lng]);
+      }
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        for (final item in decoded) {
+          if (item is Map) {
+            addPoint(
+              item['lat'] ?? item['latitude'] ?? item['Latitude'],
+              item['lng'] ??
+                  item['lon'] ??
+                  item['longitude'] ??
+                  item['Longitude'],
+            );
+          } else if (item is List && item.length >= 2) {
+            addPoint(item[0], item[1]);
+          }
+        }
+      }
+    } catch (_) {
+      final matches =
+          RegExp(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?').allMatches(raw).toList();
+      for (var i = 0; i + 1 < matches.length; i += 2) {
+        addPoint(matches[i].group(0), matches[i + 1].group(0));
+      }
+    }
+
+    return points;
+  }
+
+  bool _isPointInPolygon(
+    double latitude,
+    double longitude,
+    List<List<double>> polygon,
+  ) {
+    var inside = false;
+    for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      final yi = polygon[i][0];
+      final xi = polygon[i][1];
+      final yj = polygon[j][0];
+      final xj = polygon[j][1];
+
+      final intersects = ((yi > latitude) != (yj > latitude)) &&
+          (longitude <
+              (xj - xi) * (latitude - yi) / ((yj - yi) == 0 ? 1 : yj - yi) +
+                  xi);
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
+  void _ensureAccurateFreshPosition(Position position) {
+    if (position.accuracy > 30) {
+      throw Exception(
+          'Location accuracy is low (${position.accuracy.toStringAsFixed(0)}m). Please wait and try again.');
+    }
+
+    final age = DateTime.now().difference(position.timestamp);
+    if (age > const Duration(minutes: 2)) {
+      throw Exception('Location is too old. Please try again.');
+    }
+  }
+
   DateTime _getScheduledStartDateTime() {
     final now = DateTime.now();
     try {
@@ -288,6 +373,12 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   @override
   void initState() {
     super.initState();
+    NotificationService().initializeFCM(
+      employeeId: widget.employeeId,
+      userTag: 'user_${widget.employeeId}',
+      onForegroundMessage: _handleShiftNotification,
+      onNotificationOpenedApp: _handleShiftNotification,
+    );
     _loadSiteData();
     _loadShiftDetailsAndStatus();
     _loadShiftProgress();
@@ -298,7 +389,10 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
   @override
   void dispose() {
     _breakTicker?.cancel();
-    _positionStreamSubscription?.cancel();
+    _attendanceRefreshTimer?.cancel();
+    if (!_hasActiveAttendance) {
+      widget.locationService.stopTracking();
+    }
     if (mounted) _disposePhotos();
     super.dispose();
   }
@@ -336,6 +430,133 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
           'attendanceId',
         ])) ??
         attendanceId;
+  }
+
+  void _handleShiftNotification(RemoteMessage message) {
+    final values = [
+      message.notification?.title,
+      message.notification?.body,
+      ...message.data.entries.map((entry) => '${entry.key}:${entry.value}'),
+    ].whereType<String>().join(' ').toLowerCase();
+
+    final shouldRefreshAttendance =
+        values.contains('automatically clocked out') ||
+            values.contains('automatic_clock_out') ||
+            values.contains('auto_clock_out') ||
+            values.contains('clockout') ||
+            values.contains('clocked out') ||
+            values.contains('outside site boundary');
+
+    if (shouldRefreshAttendance) {
+      _refreshActiveAttendanceFromBackend();
+    }
+  }
+
+  void _clearActiveLocalBreakState() {
+    currentBreakStart = null;
+    _activeBreakElapsed = Duration.zero;
+    _stopBreakTicker();
+  }
+
+  Future<void> _syncActiveShiftMonitoring() async {
+    if (_hasActiveAttendance) {
+      await _startLocationTracking();
+      _startAttendanceRefreshTimer();
+    } else if (clockOutTime != null) {
+      await _stopLocationTracking();
+      _stopAttendanceRefreshTimer();
+      _clearActiveLocalBreakState();
+    }
+  }
+
+  Future<void> _startLocationTracking() async {
+    if (_isLocationTrackingActive || !_hasActiveAttendance) return;
+    _isLocationTrackingActive = true;
+    await widget.locationService.startContinuousTracking(
+      employeeId: widget.employeeId,
+      heartbeatInterval: const Duration(seconds: 45),
+      onError: (error) {
+        debugPrint("Location tracking error: $error");
+      },
+    );
+  }
+
+  Future<void> _stopLocationTracking() async {
+    if (!_isLocationTrackingActive) return;
+    await widget.locationService.stopTracking();
+    _isLocationTrackingActive = false;
+  }
+
+  void _startAttendanceRefreshTimer() {
+    if (_attendanceRefreshTimer?.isActive == true || !_hasActiveAttendance) {
+      return;
+    }
+
+    _attendanceRefreshTimer =
+        Timer.periodic(const Duration(seconds: 45), (_) async {
+      await _refreshActiveAttendanceFromBackend();
+    });
+  }
+
+  void _stopAttendanceRefreshTimer() {
+    _attendanceRefreshTimer?.cancel();
+    _attendanceRefreshTimer = null;
+  }
+
+  Future<void> _refreshActiveAttendanceFromBackend() async {
+    if (_isAttendanceRefreshInProgress || !mounted) return;
+    if (clockOutTime != null) {
+      await _syncActiveShiftMonitoring();
+      return;
+    }
+
+    _isAttendanceRefreshInProgress = true;
+    try {
+      final attendance =
+          await _attendanceService.fetchMyAttendanceForShift(widget.shiftId);
+      if (attendance == null || !mounted) return;
+
+      final backendClockOutTime = parseServerDateTime(_fieldValue(attendance, [
+        'ClockOutTime',
+        'clockOutTime',
+      ]));
+      final backendClockInTime = parseServerDateTime(_fieldValue(attendance, [
+        'ClockInTime',
+        'clockInTime',
+      ]));
+      final backendAttendanceId = _intValue(_fieldValue(attendance, [
+        'AttendanceId',
+        'attendanceId',
+        'Id',
+        'id',
+      ]));
+
+      if (backendClockInTime != null || backendClockOutTime != null) {
+        setState(() {
+          if (backendClockInTime != null && backendClockInTime.year > 1900) {
+            clockInTime = backendClockInTime;
+          }
+          if (backendAttendanceId != null && backendAttendanceId > 0) {
+            attendanceId = backendAttendanceId;
+          }
+          if (backendClockOutTime != null && backendClockOutTime.year > 1900) {
+            clockOutTime = backendClockOutTime;
+            _clearActiveLocalBreakState();
+          }
+          _syncAttendanceEvidence(attendance);
+        });
+
+        await _saveShiftProgress();
+        await _syncActiveShiftMonitoring();
+        if (clockOutTime != null) {
+          await _loadAttendancePhotos();
+        }
+      }
+    } catch (e) {
+      debugPrint("Attendance refresh failed: $e");
+    } finally {
+      _isAttendanceRefreshInProgress = false;
+    }
   }
 
   Future<void> _loadAttendancePhotos() async {
@@ -422,6 +643,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         });
 
         await _saveShiftProgress();
+        await _syncActiveShiftMonitoring();
 
         // If SiteId was missing from Job object, try loading it from Shift details
         if (currentSite == null) {
@@ -444,7 +666,6 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
                 siteName: shift['Location'] ?? "Shift Site",
                 latitude: latFromShift,
                 longitude: lngFromShift,
-                radius: 150.0,
               );
             });
           }
@@ -619,6 +840,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         if (clockOutTime != null) {
           await _loadAttendancePhotos();
         }
+        await _syncActiveShiftMonitoring();
       }
     }
 
@@ -711,6 +933,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             _startBreakTicker();
           }
           await _saveShiftProgress();
+          await _syncActiveShiftMonitoring();
           if (clockOutTime != null) {
             await _loadAttendancePhotos();
           }
@@ -754,16 +977,36 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         permission != LocationPermission.deniedForever;
   }
 
-  Future<bool> _validateGeofence() async {
+  Future<bool> _validateGeofence(Position position) async {
     if (currentSite == null) {
-      debugPrint("Geofence Check: currentSite is null");
-      return false;
+      throw Exception('Site details are not loaded. Please try again.');
     }
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
-      );
+      _ensureAccurateFreshPosition(position);
+
+      if (currentSite!.siteId <= 0) {
+        throw Exception(
+            'The site is not configured correctly. Please contact your manager.');
+      }
+
+      final geofenceType =
+          (currentSite!.geoFenceType ?? '').trim().toLowerCase();
+      if (geofenceType.contains('polygon')) {
+        final polygon = _parsePolygonCoordinates(currentSite!.geoCoordinates);
+        if (polygon.length < 3) {
+          throw Exception(
+              'The site polygon geofence is not configured. Please contact your manager.');
+        }
+
+        final inPolygon = _isPointInPolygon(
+          position.latitude,
+          position.longitude,
+          polygon,
+        );
+        debugPrint("Geofence Check: Polygon in range: $inPolygon");
+        return inPolygon;
+      }
+
       final siteLatStr = currentSite!.latitude ?? '';
       final siteLngStr = currentSite!.longitude ?? '';
       final siteLat = _parseCoordinate(siteLatStr);
@@ -775,8 +1018,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
           "Geofence Check: Site Position (ID: ${currentSite!.siteId}): ($siteLatStr, $siteLngStr)");
 
       if (siteLat == null || siteLng == null) {
-        debugPrint("Geofence Check: Site coordinates are invalid (null)");
-        return false;
+        throw Exception(
+            'The site coordinates are not configured. Please contact your manager.');
       }
 
       final distance = Geolocator.distanceBetween(
@@ -786,19 +1029,22 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         siteLng,
       );
 
-      final allowedRadius = currentSite!.radius ?? 150.0;
-      final tolerance = 20.0;
+      final allowedRadius = currentSite!.radius;
+      if (allowedRadius == null || allowedRadius <= 0) {
+        throw Exception(
+            'The site geofence radius is not configured. Please contact your manager.');
+      }
+
       debugPrint(
           "Geofence Check: Distance: ${distance.toStringAsFixed(2)}m, Allowed Radius: ${allowedRadius}m");
 
-      bool inRange = distance <= allowedRadius + tolerance;
-      debugPrint(
-          "Geofence Check: In Range: $inRange (with ${tolerance}m tolerance)");
+      bool inRange = distance <= allowedRadius;
+      debugPrint("Geofence Check: In Range: $inRange");
 
       return inRange;
     } catch (e) {
       debugPrint("Geofence Check Failed with error: $e");
-      return false;
+      rethrow;
     }
   }
 
@@ -857,8 +1103,12 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         return;
       }
 
+      final position = await widget.locationService.getCurrentPosition(
+        timeout: const Duration(seconds: 10),
+      );
+
       //  STRICT CHECK: Validate Geofence BEFORE anything else
-      bool inRange = await _validateGeofence();
+      bool inRange = await _validateGeofence(position);
       if (!inRange) {
         if (mounted) {
           setState(() => isLoading = false);
@@ -953,14 +1203,10 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
       final result = await _attendanceService.clockIn(
         employeeId: widget.employeeId,
         shiftId: widget.shiftId,
-        siteId: widget.job.siteId,
+        siteId: currentSite!.siteId,
         scheduledStartTime: widget.scheduledStartTime,
         photos: _capturedPhotos,
         clockInTime: now,
@@ -984,39 +1230,34 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         }
         await _saveShiftProgress();
         await _sendEmployeeLocation(position);
-        _startLocationTracking();
+        await _syncActiveShiftMonitoring();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Clock-in successful!')));
         }
       } else {
-        throw Exception(result['error'] ?? 'Unknown clock-in error');
+        final message = result['error']?.toString() ??
+            'Unable to clock in. Please try again.';
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
+        }
       }
     } catch (e) {
       debugPrint('Clock-in error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Clock-in failed: $e')));
+            .showSnackBar(SnackBar(content: Text(_cleanErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
-  void _startLocationTracking() async {
-    final locationSettings =
-        LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10);
-    _positionStreamSubscription =
-        Geolocator.getPositionStream(locationSettings: locationSettings)
-            .listen((Position position) async {
-      await _sendEmployeeLocation(position);
-    });
-  }
-
   Future<void> _sendEmployeeLocation(Position position) async {
     try {
-      await _locationService.sendLocation(position, widget.employeeId);
+      await widget.locationService.sendLocation(position, widget.employeeId);
     } catch (e) {
       debugPrint(" Error sending employee location: $e");
     }
@@ -1193,8 +1434,8 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      Position position = await widget.locationService.getCurrentPosition(
+        timeout: const Duration(seconds: 10),
       );
 
       // 2. Calculate Total Break Duration
@@ -1231,6 +1472,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
             } else if (!isEarly) {
               this.earlyExitReason = null;
             }
+            _clearActiveLocalBreakState();
             clockOutPhoto =
                 _capturedPhotos.isNotEmpty ? _capturedPhotos.first : null;
           });
@@ -1245,6 +1487,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
         await NotificationService()
             .sendShiftCompletionNotification(employeeName, widget.shiftId, now);
         await _saveShiftProgress();
+        await _syncActiveShiftMonitoring();
 
         if (mounted) {
           if (isEarly) {
@@ -1259,13 +1502,18 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
           }
         }
       } else {
-        throw Exception(result['error'] ?? 'Unknown clock-out error');
+        final message = result['error']?.toString() ??
+            'Unable to clock out. Please try again.';
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
+        }
       }
     } catch (e) {
       debugPrint('Clock-out error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Clock-out failed: $e')));
+            .showSnackBar(SnackBar(content: Text(_cleanErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => isLoading = false);

@@ -65,25 +65,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     try {
       // --- STEP 1: REQUEST OTP ---
       if (_step == 1) {
-        if (_emailCtrl.text.trim().isEmpty) {
+        final email = _emailCtrl.text.trim();
+        if (email.isEmpty) {
           _showMessage("Please enter your email", isError: true);
           setState(() => _isLoading = false);
           return;
         }
 
-        // Call Request Endpoint
-        final token =
-            await _authService.requestPasswordReset(_emailCtrl.text.trim());
+        if (!RegExp(r'^[\w._%+\-]+@[\w.\-]+\.[a-zA-Z]{2,}$').hasMatch(email)) {
+          _showMessage("Please enter a valid email address", isError: true);
+          setState(() => _isLoading = false);
+          return;
+        }
 
-        if (token != null) {
+        // Call Request Endpoint
+        final result = await _authService.requestPasswordReset(email);
+
+        if (result.success && result.resetTokenId != null) {
           setState(() {
-            _resetTokenId = token; //  Capture the Token!
+            _resetTokenId = result.resetTokenId; //  Capture the Token!
             _step = 2;
           });
-          _showMessage("OTP sent to your email");
+          _showMessage(result.message);
         } else {
-          _showMessage("Failed to send OTP. Check email or try again.",
-              isError: true);
+          _showMessage(result.message, isError: true);
         }
       }
 

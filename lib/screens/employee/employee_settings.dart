@@ -96,9 +96,6 @@ class _EmployeeSettingsState extends State<EmployeeSettings> {
   bool get _hasLowerCase =>
       _newPasswordController.text.contains(RegExp(r'[a-z]'));
 
-  /// Check if password contains digit
-  bool get _hasDigit => _newPasswordController.text.contains(RegExp(r'[0-9]'));
-
   /// Check if password contains special character
   bool get _hasSpecialChar =>
       _newPasswordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
@@ -242,6 +239,24 @@ class _EmployeeSettingsState extends State<EmployeeSettings> {
         "Password must be at least 6 characters long",
         isError: true,
       );
+      return;
+    }
+
+    if (!RegExp(r'[A-Z]').hasMatch(newPassword)) {
+      _showSnackBar("Password must contain at least one uppercase letter",
+          isError: true);
+      return;
+    }
+
+    if (!RegExp(r'[a-z]').hasMatch(newPassword)) {
+      _showSnackBar("Password must contain at least one lowercase letter",
+          isError: true);
+      return;
+    }
+
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(newPassword)) {
+      _showSnackBar("Password must contain at least one special character",
+          isError: true);
       return;
     }
 
@@ -459,10 +474,6 @@ class _EmployeeSettingsState extends State<EmployeeSettings> {
                 _buildValidationItem(
                   "Contains lowercase letter (a-z)",
                   _hasLowerCase,
-                ),
-                _buildValidationItem(
-                  "Contains number (0-9)",
-                  _hasDigit,
                 ),
                 _buildValidationItem(
                   "Contains special character (!@#\$%^&*)",

@@ -4,6 +4,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api_client.dart';
 
+class PasswordResetRequestResult {
+  final bool success;
+  final String? resetTokenId;
+  final String message;
+
+  const PasswordResetRequestResult({
+    required this.success,
+    this.resetTokenId,
+    required this.message,
+  });
+}
+
 class AuthService {
   // Dependencies
   final ApiClient _apiClient = ApiClient();
@@ -308,10 +320,13 @@ class AuthService {
   /// --- FORGOT PASSWORD (TOKEN-BASED FLOW) ---
 
   // 1. Request OTP (Returns the Reset Token ID)
-  Future<String?> requestPasswordReset(String email) async {
+  Future<PasswordResetRequestResult> requestPasswordReset(String email) async {
     if (forgotRequestKey.isEmpty) {
       print(" CRITICAL: FORGOT_PASS_REQUEST_KEY is missing in .env!");
-      return null;
+      return const PasswordResetRequestResult(
+        success: false,
+        message: 'Password reset is not configured. Please contact support.',
+      );
     }
 
     final url =
@@ -329,16 +344,46 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final token = data['resetTokenId'];
+        final token =
+            data['resetTokenId'] ?? data['ResetTokenId'] ?? data['token'];
+        final resetTokenId = token?.toString().trim() ?? '';
+
+        if (resetTokenId.isEmpty || resetTokenId.toLowerCase() == 'null') {
+          final message = data['message'] ??
+              data['Message'] ??
+              'We could not send an OTP for this email address.';
+          print(" OTP Request Failed: resetTokenId missing.");
+          return PasswordResetRequestResult(
+            success: false,
+            message: message.toString(),
+          );
+        }
+
         print(" Reset token received.");
-        return token.toString();
+        return PasswordResetRequestResult(
+          success: true,
+          resetTokenId: resetTokenId,
+          message: 'OTP sent to your email',
+        );
       } else {
+        var message = 'Failed to send OTP. Check email or try again.';
+        try {
+          final data = jsonDecode(response.body);
+          message = (data['message'] ?? data['Message'] ?? message).toString();
+        } catch (_) {}
+
         print(" OTP Request Failed: ${response.body}");
-        return null;
+        return PasswordResetRequestResult(
+          success: false,
+          message: message,
+        );
       }
     } catch (e) {
       print(" Request OTP Exception: $e");
-      return null;
+      return const PasswordResetRequestResult(
+        success: false,
+        message: 'Unable to send OTP. Please try again.',
+      );
     }
   }
 

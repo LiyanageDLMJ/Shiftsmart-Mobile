@@ -216,6 +216,48 @@ class _ManagerNextOfKinScreenState extends State<ManagerNextOfKinScreen> {
     return text.contains('T') ? text.split('T').first : text;
   }
 
+  String? _profileConfirmationError(
+  Map<String, dynamic> refreshed,
+  Map<String, dynamic> expected,
+) {
+  String text(dynamic value) => (value ?? '').toString().trim();
+
+  String dateOnly(dynamic value) {
+    final raw = text(value);
+    return raw.contains('T') ? raw.split('T').first : raw;
+  }
+
+  String genderValue(dynamic value) {
+    final raw = text(value).toLowerCase();
+    if (raw == 'man') return 'male';
+    if (raw == 'woman') return 'female';
+    return raw;
+  }
+
+  final refreshedDob = dateOnly(refreshed['dateOfBirth'] ?? refreshed['DateOfBirth']);
+  final expectedDob = dateOnly(expected['dateOfBirth'] ?? expected['DateOfBirth']);
+
+  if (refreshedDob != expectedDob) {
+    return 'Date of Birth was not updated.';
+  }
+
+  final refreshedGender = genderValue(refreshed['gender'] ?? refreshed['Gender']);
+  final expectedGender = genderValue(expected['gender'] ?? expected['Gender']);
+
+  if (refreshedGender != expectedGender) {
+    return 'Gender was not updated.';
+  }
+
+  final refreshedJobRole = text(refreshed['jobRole'] ?? refreshed['JobRole']);
+  final expectedJobRole = text(expected['jobRole'] ?? expected['JobRole']);
+
+  if (refreshedJobRole != expectedJobRole) {
+    return 'Job Role was not updated.';
+  }
+
+  return null;
+}
+
   String? _validateRequiredProfile(Map<String, dynamic> profile) {
     final requiredFields = <String, String>{
       'firstName': 'First Name',
@@ -298,6 +340,19 @@ class _ManagerNextOfKinScreenState extends State<ManagerNextOfKinScreen> {
 
       if (error == null && mounted) {
         await refreshUserProfileFromBackend(context);
+
+        final refreshedProfile =
+    Provider.of<UserProvider>(context, listen: false).userProfile;
+
+final confirmationError =
+    _profileConfirmationError(refreshedProfile, profileData);
+
+if (confirmationError != null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Save failed: $confirmationError')),
+  );
+  return;
+}
 
         if (mounted) {
           SuccessDialog.show(

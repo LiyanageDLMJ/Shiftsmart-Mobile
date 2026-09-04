@@ -55,6 +55,33 @@ class AttendanceService {
     }
   }
 
+  Map<String, dynamic> _failedResult(
+    int statusCode,
+    String responseBody,
+    String fallbackMessage,
+  ) {
+    String message = responseBody.trim();
+    if (message.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(message);
+        if (decoded is Map<String, dynamic>) {
+          message = (decoded['message'] ??
+                  decoded['Message'] ??
+                  decoded['error'] ??
+                  decoded['Error'] ??
+                  message)
+              .toString();
+        }
+      } catch (_) {}
+    }
+
+    return {
+      'success': false,
+      'statusCode': statusCode,
+      'error': message.isNotEmpty ? message : fallbackMessage,
+    };
+  }
+
   dynamic _readField(Map<String, dynamic> data, List<String> keys) {
     for (final key in keys) {
       if (data.containsKey(key)) return data[key];
@@ -470,12 +497,18 @@ class AttendanceService {
               decoded['attendanceId'],
         };
       } else {
-        throw Exception(
-            "Clock in failed: HTTP ${response.statusCode} - $responseBody");
+        return _failedResult(
+          response.statusCode,
+          responseBody,
+          'Unable to clock in.',
+        );
       }
     } catch (e) {
       debugPrint("Clock in service error: $e");
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': 'Unable to clock in. Please try again.'
+      };
     }
   }
 
@@ -572,12 +605,18 @@ class AttendanceService {
 
         return {'success': true, 'data': result};
       } else {
-        throw Exception(
-            "Clock out failed: HTTP ${response.statusCode} - $responseBody");
+        return _failedResult(
+          response.statusCode,
+          responseBody,
+          'Unable to clock out.',
+        );
       }
     } catch (e) {
       debugPrint("Clock out service error: $e");
-      return {'success': false, 'error': e.toString()};
+      return {
+        'success': false,
+        'error': 'Unable to clock out. Please try again.'
+      };
     }
   }
 

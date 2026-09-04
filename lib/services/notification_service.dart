@@ -22,6 +22,8 @@ class NotificationService {
   static bool _listenersConfigured = false;
   static bool _tokenRefreshListenerConfigured = false;
   static bool _deferredRegistrationInProgress = false;
+  static void Function(RemoteMessage)? _onForegroundMessage;
+  static void Function(RemoteMessage)? _onNotificationOpenedApp;
   static int? _registeredEmployeeId;
   static String? _registeredTag;
 
@@ -62,6 +64,10 @@ class NotificationService {
     void Function(RemoteMessage)? onNotificationOpenedApp,
   }) async {
     try {
+      _onForegroundMessage = onForegroundMessage ?? _onForegroundMessage;
+      _onNotificationOpenedApp =
+          onNotificationOpenedApp ?? _onNotificationOpenedApp;
+
       if (Firebase.apps.isEmpty) {
         debugPrint("FCM initialization skipped: Firebase is not initialized.");
         return;
@@ -167,12 +173,14 @@ class NotificationService {
             );
           }
 
-          if (onForegroundMessage != null) onForegroundMessage(message);
+          if (_onForegroundMessage != null) _onForegroundMessage!(message);
         });
 
         FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
           debugPrint("Notification tapped (Opened from Background)");
-          if (onNotificationOpenedApp != null) onNotificationOpenedApp(message);
+          if (_onNotificationOpenedApp != null) {
+            _onNotificationOpenedApp!(message);
+          }
         });
       }
     } catch (e) {
@@ -755,6 +763,12 @@ class NotificationService {
         return 'Shift Updated';
       case 'shift_incomplete':
         return 'Incomplete Shift Alert';
+      case 'geofence_warning':
+      case 'outside_site_boundary':
+        return 'Outside Site Boundary';
+      case 'automatic_clock_out':
+      case 'auto_clock_out':
+        return 'Automatically Clocked Out';
       case 'onboarding_complete':
         return 'Onboarding Complete';
       default:

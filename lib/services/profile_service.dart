@@ -130,22 +130,6 @@ class ProfileService {
     }
 
     final nextOfKinPayload = _nextOfKinPayload(nextOfKins, employeeId);
-    final profileUpdateBody = {
-      ...profilePayload,
-      'employeeId': employeeId,
-      'NextOfKins': nextOfKinPayload,
-      'nextOfKins': nextOfKinPayload,
-      'NextOfKin': nextOfKinPayload,
-      'ApprovedNextOfKin': nextOfKinPayload,
-    };
-
-    Future<http.Response> sendJsonRequest() {
-      return _apiClient.put(
-        url,
-        body: profileUpdateBody,
-        useAuth: true,
-      );
-    }
 
     Future<http.Response> sendMultipartRequest(String method) async {
       final uri = Uri.parse(url);
@@ -198,16 +182,7 @@ class ProfileService {
     }
 
     try {
-      var response = profilePicture == null
-          ? await sendJsonRequest()
-          : await sendMultipartRequest('PUT');
-
-      if (profilePicture == null &&
-          (response.statusCode == 400 ||
-              response.statusCode == 415 ||
-              response.statusCode == 500)) {
-        response = await sendMultipartRequest('PUT');
-      }
+      var response = await sendMultipartRequest('PUT');
 
       if (response.statusCode == 200) {
         return null; // Success
