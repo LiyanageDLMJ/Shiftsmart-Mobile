@@ -13,7 +13,7 @@ import 'api_client.dart';
 
 class NotificationService {
   static const String _defaultRegisterDeviceKey = '';
-  static const String _defaultFirebaseProjectId = 'shiftsmart-bccd2';
+  static const String _defaultFirebaseProjectId = 'shiftsmart-production';
   static const MethodChannel _nativePushChannel =
       MethodChannel('shiftsmart/native_push');
 

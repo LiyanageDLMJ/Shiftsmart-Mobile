@@ -15,6 +15,7 @@ import 'package:shiftsmart/widgets/emp_slidenav.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
 import 'package:shiftsmart/widgets/success_dialog.dart';
 import 'package:shiftsmart/screens/employee/employee_profile.dart';
+import 'package:shiftsmart/screens/privacy_policy.dart';
 
 /// Employee Settings Screen
 
@@ -542,6 +543,8 @@ class _EmployeeSettingsState extends State<EmployeeSettings> {
         // Biometric Authentication Toggle
         _buildBiometricToggle(),
         const SizedBox(height: 24),
+        _buildPrivacyPolicyLink(),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -570,6 +573,31 @@ class _EmployeeSettingsState extends State<EmployeeSettings> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPrivacyPolicyLink() {
+    return Column(
+      children: [
+        const Divider(color: Colors.white24),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white),
+          title: const Text(
+            'Privacy Policy',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PrivacyPolicyScreen(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

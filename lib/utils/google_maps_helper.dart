@@ -22,9 +22,11 @@ class GoogleMapsHelper {
   /// Get HTTP headers required to authenticate restricted API keys for REST API calls.
   static Map<String, String> get platformHeaders {
     if (Platform.isAndroid) {
+      final certificate =
+          dotenv.env['GOOGLE_MAPS_ANDROID_CERT']?.replaceAll(':', '') ?? '';
       return {
-        'X-Android-Package': 'com.AIT_MOBILE.shiftsmart',
-        'X-Android-Cert': 'E2F79985AC4C279D31845B9D906DED99F6F8FB44',
+        'X-Android-Package': 'au.com.ait.shiftsmart',
+        if (certificate.isNotEmpty) 'X-Android-Cert': certificate,
       };
     } else if (Platform.isIOS) {
       return {

@@ -14,6 +14,7 @@ import 'package:shiftsmart/widgets/gradienthorizontal.dart';
 import 'package:shiftsmart/widgets/sidenav.dart';
 import 'package:shiftsmart/widgets/uppernavbar.dart';
 import 'package:shiftsmart/widgets/success_dialog.dart'; //  Import Success Dialog
+import 'package:shiftsmart/screens/privacy_policy.dart';
 
 class ManagerSettings extends StatefulWidget {
   const ManagerSettings({super.key});
@@ -440,6 +441,8 @@ class _ManagerSettingsState extends State<ManagerSettings> {
         // Biometric Authentication Toggle
         _buildBiometricToggle(),
         const SizedBox(height: 24),
+        _buildPrivacyPolicyLink(),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -466,6 +469,31 @@ class _ManagerSettingsState extends State<ManagerSettings> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPrivacyPolicyLink() {
+    return Column(
+      children: [
+        const Divider(color: Colors.white24),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white),
+          title: const Text(
+            'Privacy Policy',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: Colors.white70),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PrivacyPolicyScreen(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

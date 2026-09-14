@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as permissions;
 import 'package:shiftsmart/models/attendance.dart';
 import 'package:shiftsmart/models/job.dart';
 import 'package:shiftsmart/models/site.dart';
@@ -51,6 +52,9 @@ class Employeeshiftview extends StatefulWidget {
 }
 
 class _EmployeeshiftviewState extends State<Employeeshiftview> {
+  static const String _backgroundLocationDisclosureKey =
+      'background_location_disclosure_accepted';
+
   List<Map<String, DateTime>> breaks = [];
   Map<String, dynamic>? shiftDetails;
   Timer? _attendanceRefreshTimer;
@@ -973,8 +977,104 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    return permission != LocationPermission.denied &&
+    final foregroundGranted = permission != LocationPermission.denied &&
         permission != LocationPermission.deniedForever;
+    if (!foregroundGranted) return false;
+
+    if (Platform.isAndroid) {
+      var backgroundStatus = await permissions.Permission.locationAlways.status;
+      if (!backgroundStatus.isGranted) {
+        backgroundStatus =
+            await permissions.Permission.locationAlways.request();
+      }
+
+      if (!backgroundStatus.isGranted) {
+        await _showBackgroundLocationSettingsDialog();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<bool> _showBackgroundLocationDisclosure() async {
+    if (!Platform.isAndroid) return true;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_backgroundLocationDisclosureKey) == true) {
+      return true;
+    }
+    if (!mounted) return false;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1C2230),
+        title: const Text(
+          'Background Location',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'ShiftSmart collects precise location data while you are clocked '
+          'in, including when the app is closed or not in use. This supports '
+          'attendance, site-boundary monitoring, geofence warnings, and '
+          'automatic clock-out. Location tracking stops after you clock out.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Not Now'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted == true) {
+      await prefs.setBool(_backgroundLocationDisclosureKey, true);
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _showBackgroundLocationSettingsDialog() async {
+    if (!mounted) return;
+
+    final openSettings = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1C2230),
+        title: const Text(
+          'Allow Background Location',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'To monitor the site boundary during an active shift, open app '
+          'settings and set Location permission to Allow all the time.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Not Now'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+
+    if (openSettings == true) {
+      await permissions.openAppSettings();
+    }
   }
 
   Future<bool> _validateGeofence(Position position) async {
@@ -1092,6 +1192,7 @@ class _EmployeeshiftviewState extends State<Employeeshiftview> {
 
   // --- CLOCK IN (Strict Geofence + GPS + Multi-Photo) ---
   Future<void> _handleClockIn() async {
+    if (!await _showBackgroundLocationDisclosure()) return;
     if (mounted) setState(() => isLoading = true);
     try {
       if (!await _checkLocationPermission()) {

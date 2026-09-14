@@ -10,6 +10,7 @@ import 'package:shiftsmart/providers/tenant_provider.dart';
 import 'package:shiftsmart/providers/user_provider.dart';
 import 'package:shiftsmart/screens/employee/emp_onboard.dart';
 import 'package:shiftsmart/screens/forgot_password.dart';
+import 'package:shiftsmart/screens/privacy_policy.dart';
 import 'package:shiftsmart/services/auth_service.dart';
 import 'package:shiftsmart/services/api_client.dart';
 import 'package:shiftsmart/services/employee_service.dart';
@@ -1188,6 +1189,30 @@ class _LoginState extends State<Login> {
                                     ),
                                   ),
                                 ],
+                                const SizedBox(height: 12),
+                                Center(
+                                  child: TextButton.icon(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const PrivacyPolicyScreen(),
+                                              ),
+                                            );
+                                          },
+                                    icon: const Icon(
+                                      Icons.privacy_tip_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Privacy Policy'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white70,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
